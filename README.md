@@ -23,6 +23,8 @@ Nhấn **Enter** để chuẩn hoá và hiển thị:
 - Dán link mới tự xuống dòng, không đè lên link cũ.
 - Link trùng bị gộp và **có báo số lượng** đã gộp — ba dạng trên cùng trỏ một ảnh thì chỉ ra một ô.
 - Click ảnh mở bản `=s0`, click dòng link để copy.
+- Link được đánh số, số nằm **ngoài** ô nhập nên bôi đen chép link không dính số vào.
+  Rê chuột lên một dòng link thì số đó và ô ảnh tương ứng cùng sáng lên, và ngược lại.
 
 **Vì sao lưới không tải thẳng `=s0`:** ảnh gốc có thể là 12000×9000 (~108 megapixel), tải hàng chục
 giây và ngốn vài chục MB mỗi tấm. Lưới dùng bản thu nhỏ (mặc định 800px, đổi được ở ô *Preview*),

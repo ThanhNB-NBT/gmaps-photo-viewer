@@ -46,15 +46,25 @@
     border:1px solid var(--line2);background:var(--panel);color:var(--fg);
     padding:8px 14px;transition:border-color .15s,background .15s,box-shadow .15s}
   button:hover{border-color:var(--acc)}
-  button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  button:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
   #theme{margin-left:auto;flex:none;padding:8px 12px;box-shadow:var(--sh);white-space:nowrap}
   #go{background:var(--acc);color:var(--acc-fg);border-color:transparent;font-weight:550}
   #go:hover{filter:brightness(1.08)}
 
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
     padding:12px;box-shadow:var(--sh)}
-  textarea{width:100%;height:132px;padding:11px 12px;background:var(--sunk);color:var(--fg);
-    border:1px solid var(--line);border-radius:8px;resize:vertical;
+  /* Số dòng nằm ngoài textarea nên bôi đen chép link không dính số.
+     Cả hai phải cùng font + line-height, và textarea để wrap=off, nếu không số lệch hàng. */
+  .ed{position:relative;background:var(--sunk);
+    border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .ed:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+  /* Tuyệt đối, nếu không 50 số sẽ kéo khung cao hơn textarea. */
+  .ln{position:absolute;left:0;top:0;bottom:0;width:38px;padding:11px 8px 11px 0;
+    overflow:hidden;text-align:right;color:var(--mut);user-select:none;
+    font:12.5px/1.6 ui-monospace,Consolas,monospace}
+  .ln div.on{color:var(--acc);font-weight:700}
+  textarea{display:block;width:100%;height:132px;padding:11px 12px 11px 40px;
+    background:transparent;color:var(--fg);border:0;border-radius:0;resize:vertical;outline:0;
     font:12.5px/1.6 ui-monospace,Consolas,monospace}
   textarea::placeholder{color:var(--mut)}
 
@@ -96,6 +106,11 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
     box-shadow:var(--sh);transition:box-shadow .16s,border-color .16s,transform .16s}
   .card:hover{box-shadow:var(--sh-h);border-color:var(--line2);transform:translateY(-2px)}
+  .card.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc),var(--sh-h)}
+  .no{position:absolute;top:7px;left:7px;z-index:1;background:rgba(0,0,0,.62);color:#fff;
+    min-width:20px;text-align:center;padding:1px 6px;border-radius:999px;
+    font:11px/1.6 ui-monospace,Consolas,monospace;pointer-events:none}
+  .card.on .no{background:var(--acc);color:var(--acc-fg);font-weight:700}
   .box{position:relative;aspect-ratio:4/3;background:var(--img)}
   .box img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
   .st{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -129,7 +144,10 @@
 
 <div class="panels">
 <div class="panel main">
-  <textarea id="in" placeholder="Dán link vào đây…" spellcheck="false"></textarea>
+  <div class="ed">
+    <div class="ln" id="ln" aria-hidden="true"><div id="lnIn"></div></div>
+    <textarea id="in" placeholder="Dán link vào đây…" spellcheck="false" wrap="off"></textarea>
+  </div>
   <div class="bar">
     <button id="go">Format &amp; hiển thị</button>
     <button id="clr">Xoá</button>
@@ -217,11 +235,31 @@ sysDark.addEventListener('change',()=>{ if(!root.hasAttribute('data-theme')) app
 /* ---------- hiển thị ---------- */
 const ta=document.getElementById('in'), grid=document.getElementById('grid'),
       empty=document.getElementById('empty'), count=document.getElementById('count'),
-      sz=document.getElementById('sz');
+      sz=document.getElementById('sz'), ln=document.getElementById('ln'),
+      lnIn=document.getElementById('lnIn');
 
-function card(full){
+const lineCount = t => { const a=t.split('\n'); if(a[a.length-1]==='') a.pop(); return a.length; };
+
+let cards=[];
+function hi(i){
+  for(let k=0;k<lnIn.children.length;k++) lnIn.children[k].classList.toggle('on',k===i);
+  cards.forEach((c,k)=>c.classList.toggle('on',k===i));
+}
+function drawLines(){
+  const n=lineCount(ta.value);
+  if(n===lnIn.children.length) return;
+  lnIn.replaceChildren(...Array.from({length:n},(_,i)=>{
+    const d=document.createElement('div'); d.textContent=i+1;
+    d.onmouseenter=()=>hi(i);
+    return d;
+  }));
+}
+
+function card(full,i){
   const c=document.createElement('div'); c.className='card';
+  c.onmouseenter=()=>hi(i); c.onmouseleave=()=>hi(-1);
   const box=document.createElement('div'); box.className='box';
+  const no=document.createElement('div'); no.className='no'; no.textContent=i+1;
   const st=document.createElement('div'); st.className='st load'; st.textContent='đang tải…';
   const img=new Image();
   img.referrerPolicy='no-referrer'; img.loading='lazy'; img.alt='';
@@ -230,7 +268,7 @@ function card(full){
   img.onclick=()=>window.open(full,'_blank','noopener');
   // ponytail: preview dùng bản thu nhỏ; =s0 có thể là 12000x9000 nên chỉ mở khi click.
   img.src = base(full) + sz.value;
-  box.append(img, st);
+  box.append(img, st, no);
 
   const l=document.createElement('div'); l.className='u'; l.textContent=full; l.title='Click để copy';
   l.onclick=()=>navigator.clipboard.writeText(full).then(()=>{
@@ -243,14 +281,29 @@ function card(full){
 function render(){
   const urls = extract(ta.value);
   ta.value = urls.join('\n') + (urls.length ? '\n' : '');
-  ta.scrollTop = ta.scrollHeight;
+  ta.scrollTop = 0;   // sau khi format thì xem từ link 1, không phải nhảy xuống đáy
   count.textContent = urls.length
     ? urls.length + ' ảnh' + (urls.dups ? ' · đã gộp ' + urls.dups + ' link trùng' : '')
     : '';
-  grid.replaceChildren(...urls.map(card));
+  cards = urls.map((u,i)=>card(u,i));
+  grid.replaceChildren(...cards);
   grid.hidden = !urls.length;
   empty.hidden = !!urls.length;
+  drawLines();
 }
+
+// Textarea không cho hover từng dòng -> suy ra dòng từ toạ độ chuột.
+ta.addEventListener('mousemove', e=>{
+  const cs=getComputedStyle(ta);
+  const i=Math.floor((e.offsetY - parseFloat(cs.paddingTop) + ta.scrollTop) / parseFloat(cs.lineHeight));
+  hi(i>=0 && i<lnIn.children.length ? i : -1);
+});
+ta.addEventListener('mouseleave', ()=>hi(-1));
+ln.addEventListener('mouseleave', ()=>hi(-1));
+// Không dùng ln.scrollTop: gutter không có thanh cuộn ngang nên nội dung ngắn hơn
+// textarea và scrollTop bị kẹp về 0 -> số lệch hàng. Dịch bằng transform thì luôn đúng.
+ta.addEventListener('scroll', ()=>{ lnIn.style.transform='translateY('+(-ta.scrollTop)+'px)'; });
+ta.addEventListener('input', drawLines);
 
 // Dán link mới -> tự xuống dòng rồi dán tiếp.
 ta.addEventListener('paste', e=>{
@@ -260,14 +313,15 @@ ta.addEventListener('paste', e=>{
   const v=ta.value;
   ta.value = (v && !v.endsWith('\n') ? v+'\n' : v) + t.trim() + '\n';
   ta.scrollTop = ta.scrollHeight;
+  drawLines();   // preventDefault nên không có sự kiện input, phải vẽ lại số tay
 });
 ta.addEventListener('keydown', e=>{
   if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); render(); }
 });
 document.getElementById('go').onclick=render;
 document.getElementById('clr').onclick=()=>{
-  ta.value=''; grid.replaceChildren(); grid.hidden=true; empty.hidden=false;
-  count.textContent=''; ta.focus();
+  ta.value=''; cards=[]; grid.replaceChildren(); grid.hidden=true; empty.hidden=false;
+  count.textContent=''; drawLines(); ta.focus();
 };
 sz.onchange=()=>{ if(!grid.hidden) render(); };
 
@@ -381,6 +435,11 @@ ll.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); look
   console.assert(needsNewToken({success:false,message:'Security Token missing.'}),'tok missing');
   console.assert(!needsNewToken({success:false,message:'No administrative info found for this location.'}),'tok ngoai VN');
   console.assert(!needsNewToken({success:true,data:{}}),'tok ok');
+
+  // dòng cuối rỗng do render() luôn thêm '\n' -> không được đếm thành một số thừa
+  console.assert(lineCount('')===0,'ln rong');
+  console.assert(lineCount('a\n')===1 && lineCount('a')===1,'ln 1');
+  console.assert(lineCount('a\nb\n')===2 && lineCount('a\nb')===2,'ln 2');
 })();
 </script>
 </body>
