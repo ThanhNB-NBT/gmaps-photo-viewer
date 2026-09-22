@@ -55,8 +55,16 @@
     padding:12px;box-shadow:var(--sh)}
   /* Số dòng nằm ngoài textarea nên bôi đen chép link không dính số.
      Cả hai phải cùng font + line-height, và textarea để wrap=off, nếu không số lệch hàng. */
-  .ed{position:relative;background:var(--sunk);
+  .ed{position:relative;background:var(--sunk);padding-right:30px;
     border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  /* Cột xoá bên phải nằm NGOÀI textarea (trong padding của .ed) nên không đè thanh cuộn. */
+  .rn{position:absolute;right:0;top:0;bottom:0;width:30px;padding:11px 0;overflow:hidden}
+  /* > div: nếu để ".rn div" thì nó khớp cả #rnIn, biến hộp bọc thành flex ngang. */
+  #rnIn > div{height:20px;display:flex;align-items:center;justify-content:center}
+  .x{width:18px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;
+    color:var(--mut);font:13px/1 system-ui,sans-serif;cursor:pointer;
+    display:flex;align-items:center;justify-content:center}
+  .x:hover{background:var(--bad);color:#fff}
   .ed:focus-within{outline:2px solid var(--acc);outline-offset:1px}
   /* Tuyệt đối, nếu không 50 số sẽ kéo khung cao hơn textarea. */
   .ln{position:absolute;left:0;top:0;bottom:0;width:38px;padding:11px 8px 11px 0;
@@ -124,7 +132,8 @@
   .card:hover .st.dim{opacity:1}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
-  .u{padding:9px 11px;border-top:1px solid var(--line);color:var(--mut);cursor:copy;
+  .foot{display:flex;align-items:center;gap:2px;padding-right:7px;border-top:1px solid var(--line)}
+  .u{flex:1;min-width:0;padding:9px 4px 9px 11px;color:var(--mut);cursor:copy;
     font:11px ui-monospace,Consolas,monospace;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s}
   .u:hover{color:var(--fg)}
@@ -147,10 +156,12 @@
   <div class="ed">
     <div class="ln" id="ln" aria-hidden="true"><div id="lnIn"></div></div>
     <textarea id="in" placeholder="Dán link vào đây…" spellcheck="false" wrap="off"></textarea>
+    <div class="rn" id="rn"><div id="rnIn"></div></div>
   </div>
   <div class="bar">
     <button id="go">Format &amp; hiển thị</button>
-    <button id="clr">Xoá</button>
+    <button id="copyall">Copy tất cả</button>
+    <button id="clr">Xoá hết</button>
     <label class="sz">Preview
       <select id="sz">
         <option value="=w400">400px</option>
@@ -211,6 +222,25 @@ function extract(text){
 
 const base = u => u.slice(0, u.lastIndexOf('='));
 
+// navigator.clipboard chỉ có ở secure context. Mở trang qua http:// hay trong iframe
+// là nó undefined và nút copy im lặng không làm gì -> phải có đường lui.
+async function copy(text){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  }catch(e){ /* bị từ chối quyền -> rơi xuống đường lui */ }
+  const t=document.createElement('textarea');
+  t.value=text; t.setAttribute('readonly','');
+  t.style.cssText='position:fixed;top:0;left:0;opacity:0';
+  document.body.append(t); t.select();
+  let ok=false;
+  try{ ok=document.execCommand('copy'); }catch(e){}   // ponytail: API cũ, nhưng là cái duy nhất chạy ngoài secure context
+  t.remove();
+  return ok;
+}
+
 /* ---------- giao diện sáng/tối ---------- */
 const root=document.documentElement, tbtn=document.getElementById('theme');
 const sysDark = matchMedia('(prefers-color-scheme:dark)');
@@ -236,7 +266,7 @@ sysDark.addEventListener('change',()=>{ if(!root.hasAttribute('data-theme')) app
 const ta=document.getElementById('in'), grid=document.getElementById('grid'),
       empty=document.getElementById('empty'), count=document.getElementById('count'),
       sz=document.getElementById('sz'), ln=document.getElementById('ln'),
-      lnIn=document.getElementById('lnIn');
+      lnIn=document.getElementById('lnIn'), rnIn=document.getElementById('rnIn');
 
 const lineCount = t => { const a=t.split('\n'); if(a[a.length-1]==='') a.pop(); return a.length; };
 
@@ -245,12 +275,39 @@ function hi(i){
   for(let k=0;k<lnIn.children.length;k++) lnIn.children[k].classList.toggle('on',k===i);
   cards.forEach((c,k)=>c.classList.toggle('on',k===i));
 }
+// Xoá dòng thứ i khỏi ô nhập. Dùng chung cho nút x ở cột phải và nút x dưới ô ảnh,
+// nên chỉ có một chỗ định nghĩa "xoá một link nghĩa là gì".
+const dropLine=(text,i)=>{
+  const a=text.split('\n');
+  if(a[a.length-1]==='') a.pop();
+  a.splice(i,1);
+  return a.length ? a.join('\n')+'\n' : '';
+};
+function delLine(i){
+  ta.value = dropLine(ta.value, i);
+  hi(-1);
+  render();
+}
+
+const xBtn=(i,label)=>{
+  const b=document.createElement('button');
+  b.className='x'; b.type='button'; b.textContent='×';
+  b.title=label; b.setAttribute('aria-label',label);
+  b.onmouseenter=()=>hi(i);
+  b.onclick=e=>{ e.stopPropagation(); delLine(i); };
+  return b;
+};
+
 function drawLines(){
   const n=lineCount(ta.value);
   if(n===lnIn.children.length) return;
   lnIn.replaceChildren(...Array.from({length:n},(_,i)=>{
     const d=document.createElement('div'); d.textContent=i+1;
     d.onmouseenter=()=>hi(i);
+    return d;
+  }));
+  rnIn.replaceChildren(...Array.from({length:n},(_,i)=>{
+    const d=document.createElement('div'); d.append(xBtn(i,'Xoá link '+(i+1)));
     return d;
   }));
 }
@@ -271,11 +328,13 @@ function card(full,i){
   box.append(img, st, no);
 
   const l=document.createElement('div'); l.className='u'; l.textContent=full; l.title='Click để copy';
-  l.onclick=()=>navigator.clipboard.writeText(full).then(()=>{
-    l.classList.add('ok'); l.textContent='đã copy link =s0';
+  l.onclick=()=>copy(full).then(ok=>{
+    l.classList.toggle('ok',ok); l.textContent = ok ? 'đã copy link =s0' : 'copy không được';
     setTimeout(()=>{ l.classList.remove('ok'); l.textContent=full; },900);
   });
-  c.append(box,l); return c;
+  const foot=document.createElement('div'); foot.className='foot';
+  foot.append(l, xBtn(i,'Xoá link '+(i+1)));
+  c.append(box,foot); return c;
 }
 
 function render(){
@@ -302,7 +361,10 @@ ta.addEventListener('mouseleave', ()=>hi(-1));
 ln.addEventListener('mouseleave', ()=>hi(-1));
 // Không dùng ln.scrollTop: gutter không có thanh cuộn ngang nên nội dung ngắn hơn
 // textarea và scrollTop bị kẹp về 0 -> số lệch hàng. Dịch bằng transform thì luôn đúng.
-ta.addEventListener('scroll', ()=>{ lnIn.style.transform='translateY('+(-ta.scrollTop)+'px)'; });
+ta.addEventListener('scroll', ()=>{
+  const y='translateY('+(-ta.scrollTop)+'px)';
+  lnIn.style.transform=y; rnIn.style.transform=y;
+});
 ta.addEventListener('input', drawLines);
 
 // Dán link mới -> tự xuống dòng rồi dán tiếp.
@@ -319,6 +381,15 @@ ta.addEventListener('keydown', e=>{
   if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); render(); }
 });
 document.getElementById('go').onclick=render;
+document.getElementById('copyall').onclick=e=>{
+  const t=ta.value.trim();
+  if(!t) return;
+  const b=e.currentTarget, old=b.textContent, n=lineCount(ta.value);
+  copy(t+'\n').then(ok=>{
+    b.textContent = ok ? 'Đã copy '+n+' link' : 'Copy không được';
+    setTimeout(()=>b.textContent=old,1100);
+  });
+};
 document.getElementById('clr').onclick=()=>{
   ta.value=''; cards=[]; grid.replaceChildren(); grid.hidden=true; empty.hidden=false;
   count.textContent=''; drawLines(); ta.focus();
@@ -369,9 +440,9 @@ const line=(label,text)=>{
   const d=document.createElement('div'); d.className='lv'; d.title='Click để copy';
   d.innerHTML='<b></b><span></span>';
   d.firstChild.textContent=label; d.lastChild.textContent=text;
-  d.onclick=()=>navigator.clipboard.writeText(text).then(()=>{
-    const old=d.lastChild.textContent; d.lastChild.textContent='đã copy';
-    setTimeout(()=>d.lastChild.textContent=old,800);
+  d.onclick=()=>copy(text).then(ok=>{
+    d.lastChild.textContent = ok ? 'đã copy' : 'copy không được';
+    setTimeout(()=>d.lastChild.textContent=text,800);
   });
   return d;
 };
@@ -440,6 +511,11 @@ ll.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); look
   console.assert(lineCount('')===0,'ln rong');
   console.assert(lineCount('a\n')===1 && lineCount('a')===1,'ln 1');
   console.assert(lineCount('a\nb\n')===2 && lineCount('a\nb')===2,'ln 2');
+
+  console.assert(dropLine('a\nb\nc\n',1)==='a\nc\n','xoa giua');
+  console.assert(dropLine('a\nb\nc\n',2)==='a\nb\n','xoa cuoi');
+  console.assert(dropLine('a\nb',0)==='b\n','xoa dau, thieu \\n cuoi');
+  console.assert(dropLine('a\n',0)==='','xoa het thi rong hoan toan');
 })();
 </script>
 </body>
