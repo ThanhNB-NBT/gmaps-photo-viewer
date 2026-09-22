@@ -55,7 +55,9 @@
     padding:12px;box-shadow:var(--sh)}
   /* Số dòng nằm ngoài textarea nên bôi đen chép link không dính số.
      Cả hai phải cùng font + line-height, và textarea để wrap=off, nếu không số lệch hàng. */
-  .ed{position:relative;background:var(--sunk);padding-right:30px;
+  /* padding hai bên của .ed chừa chỗ cho hai cột, để textarea KHÔNG nằm dưới chúng:
+     padding-left của chính textarea sẽ cuộn theo chữ, làm chữ chui xuống dưới số. */
+  .ed{position:relative;background:var(--sunk);padding:0 30px 0 38px;
     border:1px solid var(--line);border-radius:8px;overflow:hidden}
   /* Cột xoá bên phải nằm NGOÀI textarea (trong padding của .ed) nên không đè thanh cuộn. */
   .rn{position:absolute;right:0;top:0;bottom:0;width:30px;padding:11px 0;overflow:hidden}
@@ -73,7 +75,7 @@
     overflow:hidden;text-align:right;color:var(--mut);user-select:none;
     font:12.5px/1.6 ui-monospace,Consolas,monospace}
   .ln div.on{color:var(--acc);font-weight:700}
-  textarea{display:block;width:100%;height:132px;padding:11px 12px 11px 40px;
+  textarea{display:block;width:100%;height:132px;padding:11px 12px 11px 4px;
     background:transparent;color:var(--fg);border:0;border-radius:0;resize:vertical;outline:0;
     font:12.5px/1.6 ui-monospace,Consolas,monospace}
   textarea::placeholder{color:var(--mut)}
@@ -376,8 +378,7 @@ ta.addEventListener('paste', e=>{
   e.preventDefault();
   const v=ta.value;
   ta.value = (v && !v.endsWith('\n') ? v+'\n' : v) + t.trim() + '\n';
-  ta.scrollTop = ta.scrollHeight;
-  drawLines();   // preventDefault nên không có sự kiện input, phải vẽ lại số tay
+  render();   // format và hiển thị ngay, không đợi Enter
 });
 ta.addEventListener('keydown', e=>{
   if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); render(); }

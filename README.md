@@ -17,7 +17,7 @@ Nhận cả ba dạng link, dán lẫn lộn cũng được:
 | CSS `background-image` | `background-image: url("https://lh3.googleusercontent.com/...=w203-h152-k-no");` |
 | Link lh3 thô | `https://lh3.googleusercontent.com/gps-cs-s/AHRPTWk...` |
 
-Nhấn **Enter** để chuẩn hoá và hiển thị:
+Dán xong là tự chuẩn hoá và hiển thị ngay (hoặc nhấn **Enter** sau khi gõ tay):
 
 - Mọi link được cắt hậu tố kích thước và gắn `=s0` (ảnh gốc).
 - Dán link mới tự xuống dòng, không đè lên link cũ.
