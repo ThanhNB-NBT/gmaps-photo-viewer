@@ -3,7 +3,9 @@
 Một file HTML duy nhất. Dán link ảnh Google Maps ở bất kỳ dạng nào vào, xem ảnh ngay bên dưới,
 và tra địa chỉ hành chính Việt Nam (2 cấp / 3 cấp) theo toạ độ.
 
-Mở bằng cách double-click `index.html`. Không cần cài gì, không cần server, không có thư viện ngoài.
+**Dùng ngay: https://thanhnb-nbt.github.io/gmaps-photo-viewer/**
+
+Hoặc tải `index.html` về, double-click là chạy. Không cần cài gì, không cần server, không có thư viện ngoài.
 
 ## Xem ảnh
 
