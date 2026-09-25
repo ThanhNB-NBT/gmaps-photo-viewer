@@ -52,6 +52,12 @@ Dùng API công khai của [gis.vn](https://gis.vn/api) (`vn2000.vn/api/location
 
 Đây là phần **duy nhất** cần mạng. Phần xem ảnh chạy hoàn toàn cục bộ.
 
+## Xem video
+
+Bấm **Chọn video…** hoặc kéo thả file vào khung *Xem video* — chọn nhiều file cùng lúc được.
+Video phát ngay trong trình duyệt, **không tải lên đâu và không lưu lại**: tải lại trang là mất.
+Nút `×` đóng video và giải phóng bộ nhớ. Phát được định dạng nào tuỳ trình duyệt (mp4/webm thì chắc chắn).
+
 ## Giao diện
 
 Sáng / tối, theo hệ thống hoặc bấm nút ở góc phải để chọn tay (nhớ qua `localStorage`).

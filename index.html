@@ -89,7 +89,18 @@
   .panels{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
   .panels>.main{flex:1 1 460px}
   .panels>.geo{flex:1 1 340px;max-width:520px}
+  .panels>.vid{flex:1 1 100%}
   .ttl{font-size:13px;font-weight:600;margin:0 0 9px}
+  /* Video chỉ sống trong tab: blob URL, không upload, không lưu. */
+  .vid.drag{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
+  .vid .count{margin-left:0}
+  .vids{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+  .vids:not(:empty){margin-top:12px}
+  .vids figure{margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .vids video{display:block;width:100%;max-height:60vh;background:#000}
+  .vids figcaption{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;
+    font-size:12px;color:var(--mut)}
+  .vids figcaption span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .row{display:flex;gap:8px}
   input[type=text]{flex:1;min-width:0;padding:8px 10px;background:var(--sunk);color:var(--fg);
     border:1px solid var(--line);border-radius:8px;font:12.5px ui-monospace,Consolas,monospace}
@@ -194,6 +205,16 @@
     <p>Mỗi token chỉ dùng được 10 lượt cho mỗi API. Hết lượt, trang tự xin token mới rồi tra lại —
       bạn không phải làm gì. Có key riêng của gis.vn thì dán vào đây, nó sẽ được ưu tiên.</p>
   </details>
+</div>
+
+<div class="panel vid" id="vid">
+  <p class="ttl">Xem video</p>
+  <div class="bar" style="margin-top:0">
+    <button id="pick">Chọn video…</button>
+    <input type="file" id="vf" accept="video/*" multiple hidden>
+    <span class="count">hoặc kéo thả file vào khung này — chỉ phát trong máy, không tải lên đâu cả.</span>
+  </div>
+  <div class="vids" id="vids"></div>
 </div>
 </div>
 
@@ -478,6 +499,29 @@ async function lookup(){
 }
 document.getElementById('lookup').onclick=lookup;
 ll.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); lookup(); } });
+
+/* ---------- video: phát file ngay trong trình duyệt, không lưu ---------- */
+const vid=document.getElementById('vid'), vids=document.getElementById('vids'), vf=document.getElementById('vf');
+function addVideos(files){
+  for(const f of files){
+    if(!f.type.startsWith('video/')) continue;
+    const url=URL.createObjectURL(f);
+    const fig=document.createElement('figure');
+    const v=document.createElement('video');
+    v.src=url; v.controls=true; v.preload='metadata';
+    const cap=document.createElement('figcaption');
+    const name=document.createElement('span'); name.textContent=f.name; name.title=f.name;
+    const x=document.createElement('button'); x.className='x'; x.textContent='×'; x.title='Đóng video';
+    // Thu hồi blob URL, không thì file vẫn nằm trong RAM tới khi đóng tab.
+    x.onclick=()=>{ URL.revokeObjectURL(url); fig.remove(); };
+    cap.append(name,x); fig.append(v,cap); vids.append(fig);
+  }
+}
+document.getElementById('pick').onclick=()=>vf.click();
+vf.onchange=()=>{ addVideos(vf.files); vf.value=''; };
+vid.addEventListener('dragover',e=>{ e.preventDefault(); vid.classList.add('drag'); });
+vid.addEventListener('dragleave',e=>{ if(!vid.contains(e.relatedTarget)) vid.classList.remove('drag'); });
+vid.addEventListener('drop',e=>{ e.preventDefault(); vid.classList.remove('drag'); addVideos(e.dataTransfer.files); });
 
 /* ---------- self-check ---------- */
 (function(){
