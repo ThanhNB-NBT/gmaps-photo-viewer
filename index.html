@@ -607,13 +607,24 @@ async function tiktok(u){
 }
 
 // a[download] bị bỏ qua với link khác origin -> phải kéo về thành blob thì mới đặt được tên file.
+function saveBlob(b,name){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),60e3);  // thu hồi ngay thì vài trình duyệt huỷ tải
+}
 async function saveUrl(u,name){
-  try{
-    const b=await fetch(u).then(r=>{ if(!r.ok) throw new Error(r.status); return r.blob(); });
-    const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),60e3);  // thu hồi ngay thì vài trình duyệt huỷ tải
-    return true;
-  }catch(e){ return false; }
+  try{ saveBlob(await fetch(u).then(r=>{ if(!r.ok) throw new Error(r.status); return r.blob(); }), name); return true; }
+  catch(e){ return false; }
+}
+
+// Địa chỉ Cloudflare Worker (file worker.js trong repo, xem README). Có thì TikTok tải qua Worker,
+// để máy nằm sau mạng chặn CDN TikTok (VPN công ty...) vẫn tải được. Để trống = gọi thẳng như cũ.
+const TT_PROXY='https://gmaps-tiktok.novelnbt.workers.dev';
+async function viaProxy(u){
+  const r=await fetch(TT_PROXY+'?url='+encodeURIComponent(u));
+  if(!r.ok) throw new Error(await r.text());
+  const name=((r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/)||[])[1] || 'tiktok.mp4';
+  saveBlob(await r.blob(),name);
+  return name;
 }
 
 async function download(){
@@ -625,6 +636,11 @@ async function download(){
     say('Facebook không cho trang khác lấy video. Mở link rồi bấm nút "⬇ Tải video FB" trên thanh dấu trang (xem hướng dẫn bên dưới).','note',dlOut);
     addLink('Mở video trên Facebook ↗',u);
     return;
+  }
+  if(TT_PROXY){
+    say('đang tải qua Worker…','note',dlOut);
+    try{ say('Đã tải: '+await viaProxy(u),'note',dlOut); return; }
+    catch(e){ /* Worker hỏng hoặc hết lượt -> thử đường thẳng bên dưới */ }
   }
   say('đang lấy link video…','note',dlOut);
   let v;

@@ -65,6 +65,19 @@ Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải
   `facebook_<id>.mp4` — không qua máy chủ nào, không cần đăng nhập với video công khai.
   Trên điện thoại: lưu bookmark, rồi gõ tên bookmark vào thanh địa chỉ khi đang mở video.
 
+### Mạng chặn TikTok (VPN công ty…): tải qua Cloudflare Worker
+
+Nếu máy không vào được CDN video của TikTok (`v16…tiktokcdn…`), cho video đi vòng qua một
+Cloudflare Worker của riêng bạn — miễn phí 100.000 lượt/ngày, không lưu gì:
+
+1. Vào [dash.cloudflare.com](https://dash.cloudflare.com) (tạo tài khoản miễn phí nếu chưa có)
+   → **Workers & Pages** → **Create** → **Start with Hello World** → đặt tên → **Deploy**.
+2. Bấm **Edit code**, xoá hết, dán nội dung file [`worker.js`](worker.js) → **Deploy**.
+3. Chép địa chỉ dạng `https://<tên>.<tài-khoản>.workers.dev`, gán vào `const TT_PROXY=''` trong `index.html`.
+
+Có `TT_PROXY` thì TikTok luôn tải qua Worker; Worker lỗi thì trang tự thử lại đường thẳng.
+Worker chỉ nhận link TikTok, nên người khác không mượn nó làm proxy cho trang bất kỳ được.
+
 Không có gì được lưu lại: link chỉ nằm trong ô nhập, file tải về đi thẳng vào máy bạn.
 
 ## Xem video
