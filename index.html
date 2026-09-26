@@ -601,7 +601,9 @@ async function tiktok(u){
   const d=j.data;
   if(d.images && d.images.length) throw new Error('bài này là ảnh (slideshow), không phải video');
   const abs=p=>p && p.startsWith('/') ? 'https://www.tikwm.com'+p : p;  // đôi khi tikwm trả đường dẫn tương đối
-  return {url:abs(d.hdplay||d.play), name:'tiktok_'+((d.author && d.author.unique_id)||'')+'_'+d.id+'.mp4', title:d.title};
+  // KHÔNG dùng hdplay: đo 8 video thì 6 cái hdplay là H.265 -> Chrome/Windows không có codec HEVC
+  // phát ra màn đen chỉ còn tiếng. play cũng không logo và luôn là H.264, chạy mọi nơi.
+  return {url:abs(d.play||d.hdplay), name:'tiktok_'+((d.author && d.author.unique_id)||'')+'_'+d.id+'.mp4', title:d.title};
 }
 
 // a[download] bị bỏ qua với link khác origin -> phải kéo về thành blob thì mới đặt được tên file.
