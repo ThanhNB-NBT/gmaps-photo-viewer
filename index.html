@@ -249,8 +249,9 @@
   </div>
   <div class="geo-out" id="dlOut"></div>
   <details class="tok" id="fbHelp">
-    <summary>Facebook: tải bằng nút trên thanh dấu trang</summary>
-    <p>Facebook chặn mọi trang khác đọc video, nên việc tải phải chạy ngay trên facebook.com.
+    <summary>Dự phòng cho Facebook: nút trên thanh dấu trang</summary>
+    <p>Link Facebook bình thường tải qua Worker như TikTok. Video riêng tư, chỉ bạn bè xem được, hoặc
+      Worker báo lỗi thì dùng cách này — nó chạy ngay trên facebook.com với tài khoản bạn đang đăng nhập.
       Kéo nút <a id="fbbm" class="bm" href="#">⬇ Tải video FB</a> lên thanh dấu trang (làm một lần).
       Sau đó mở link video Facebook, bấm nút đó trên thanh dấu trang là tải về.</p>
   </details>
@@ -616,28 +617,29 @@ async function saveUrl(u,name){
   catch(e){ return false; }
 }
 
-// Địa chỉ Cloudflare Worker (file worker.js trong repo, xem README). Có thì TikTok tải qua Worker,
-// để máy nằm sau mạng chặn CDN TikTok (VPN công ty...) vẫn tải được. Để trống = gọi thẳng như cũ.
-const TT_PROXY='https://gmaps-tiktok.novelnbt.workers.dev';
+// Địa chỉ Cloudflare Worker (file worker.js trong repo, xem README). Có thì TikTok lẫn Facebook tải qua
+// Worker: máy sau mạng chặn CDN (VPN công ty...) vẫn tải được, và FB khỏi cần bookmarklet.
+// Để trống = TikTok gọi thẳng tikwm, FB quay về bookmarklet.
+const VIDEO_PROXY='https://gmaps-tiktok.novelnbt.workers.dev';
 
 async function download(){
   const u=(dl.value.match(/https?:\/\/\S+/)||[])[0];
   const p=u && platform(u);
   if(!p){ say('Dán link chia sẻ của TikTok hoặc Facebook.','bad',dlOut); return; }
-  if(p==='facebook'){
-    fbHelp.open=true;
-    say('Facebook không cho trang khác lấy video. Mở link rồi bấm nút "⬇ Tải video FB" trên thanh dấu trang (xem hướng dẫn bên dưới).','note',dlOut);
-    addLink('Mở video trên Facebook ↗',u);
-    return;
-  }
-  if(TT_PROXY){
+  if(VIDEO_PROXY){
     // Để trình duyệt tự tải (Worker trả Content-Disposition: attachment): có tiến độ + tốc độ ở thanh
     // tải xuống và ghi ra đĩa ngay khi dữ liệu về, thay vì kéo hết vào RAM rồi mới lưu — trước đây nhìn
     // như treo tới lúc xong. Mở ở tab mới: tải được thì trình duyệt tự đóng tab, Worker báo lỗi thì lỗi
     // hiện ở tab đó và trang này không mất gì. Phải chạy trước mọi await để còn quyền mở tab từ cú bấm.
-    const a=document.createElement('a'); a.href=TT_PROXY+'?url='+encodeURIComponent(u);
+    const a=document.createElement('a'); a.href=VIDEO_PROXY+'?url='+encodeURIComponent(u);
     a.target='_blank'; a.rel='noopener'; a.click();
     say('Đã chuyển cho trình duyệt tải — xem tiến độ ở thanh tải xuống. Nếu mở ra tab báo lỗi thì đọc lỗi ở tab đó.','note',dlOut);
+    return;
+  }
+  if(p==='facebook'){
+    fbHelp.open=true;
+    say('Facebook không cho trang khác lấy video. Mở link rồi bấm nút "⬇ Tải video FB" trên thanh dấu trang (xem hướng dẫn bên dưới).','note',dlOut);
+    addLink('Mở video trên Facebook ↗',u);
     return;
   }
   say('đang lấy link video…','note',dlOut);

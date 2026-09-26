@@ -59,13 +59,14 @@ Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải
 - **TikTok** (`vt.tiktok.com/…`, `www.tiktok.com/@…/video/…`): tải thẳng bản không logo nén H.264 (bản HD của TikTok thường là H.265 — nhiều máy phát ra màn đen chỉ còn tiếng), tên file
   `tiktok_<tác giả>_<id>.mp4`. Trang gửi link cho [tikwm.com](https://www.tikwm.com) để lấy link video
   (dịch vụ ngoài duy nhất của phần này, giới hạn ~1 lượt/giây). Bài slideshow ảnh thì báo không hỗ trợ.
-- **Facebook** (`facebook.com/share/v/…`, `/reel/…`, `/videos/…`, `fb.watch/…`): Facebook chặn mọi trang
-  khác đọc video, nên dùng **bookmarklet**: kéo nút *⬇ Tải video FB* lên thanh dấu trang một lần, sau đó
-  mở link video Facebook và bấm nút đó. Nó đọc link mp4 HD ngay trên trang FB rồi tải về
-  `facebook_<id>.mp4` — không qua máy chủ nào, không cần đăng nhập với video công khai.
-  Trên điện thoại: lưu bookmark, rồi gõ tên bookmark vào thanh địa chỉ khi đang mở video.
+- **Facebook** (`facebook.com/reel/…`, `/share/r/…`, `/share/v/…`, `fb.watch/…`): cũng tải qua Worker
+  (mục dưới) — Worker mở trang video không đăng nhập, bóc link mp4 rồi trả về. Reel đã chạy; trang
+  `/videos/…` / `/watch?v=…` cũ thì Facebook hay chặn IP Cloudflare. Bản HD của reel thường là **AV1 1080p**:
+  Chrome/Edge/Firefox phát được, Windows cần *AV1 Video Extension* (miễn phí, Win 11 thường có sẵn).
+  Dự phòng (video riêng tư, chỉ bạn bè, hoặc Worker lỗi): **bookmarklet** — kéo nút *⬇ Tải video FB* lên
+  thanh dấu trang, mở video trên Facebook rồi bấm nút đó; nó chạy với tài khoản bạn đang đăng nhập.
 
-### Mạng chặn TikTok (VPN công ty…): tải qua Cloudflare Worker
+### Cloudflare Worker (TikTok khi mạng chặn CDN, và Facebook)
 
 Nếu máy không vào được CDN video của TikTok (`v16…tiktokcdn…`), cho video đi vòng qua một
 Cloudflare Worker của riêng bạn — miễn phí 100.000 lượt/ngày, không lưu gì:
@@ -73,10 +74,10 @@ Cloudflare Worker của riêng bạn — miễn phí 100.000 lượt/ngày, khô
 1. Vào [dash.cloudflare.com](https://dash.cloudflare.com) (tạo tài khoản miễn phí nếu chưa có)
    → **Workers & Pages** → **Create** → **Start with Hello World** → đặt tên → **Deploy**.
 2. Bấm **Edit code**, xoá hết, dán nội dung file [`worker.js`](worker.js) → **Deploy**.
-3. Chép địa chỉ dạng `https://<tên>.<tài-khoản>.workers.dev`, gán vào `const TT_PROXY=''` trong `index.html`.
+3. Chép địa chỉ dạng `https://<tên>.<tài-khoản>.workers.dev`, gán vào `const VIDEO_PROXY=''` trong `index.html`.
 
-Có `TT_PROXY` thì TikTok luôn tải qua Worker; Worker lỗi thì trang tự thử lại đường thẳng.
-Worker chỉ nhận link TikTok, nên người khác không mượn nó làm proxy cho trang bất kỳ được.
+Có `VIDEO_PROXY` thì TikTok và Facebook đều tải qua Worker (trình duyệt tự tải, có thanh tiến độ).
+Worker chỉ nhận link TikTok/Facebook, nên người khác không mượn nó làm proxy cho trang bất kỳ được.
 
 Không có gì được lưu lại: link chỉ nằm trong ô nhập, file tải về đi thẳng vào máy bạn.
 
