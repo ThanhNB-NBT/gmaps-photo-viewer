@@ -619,13 +619,6 @@ async function saveUrl(u,name){
 // Địa chỉ Cloudflare Worker (file worker.js trong repo, xem README). Có thì TikTok tải qua Worker,
 // để máy nằm sau mạng chặn CDN TikTok (VPN công ty...) vẫn tải được. Để trống = gọi thẳng như cũ.
 const TT_PROXY='https://gmaps-tiktok.novelnbt.workers.dev';
-async function viaProxy(u){
-  const r=await fetch(TT_PROXY+'?url='+encodeURIComponent(u));
-  if(!r.ok) throw new Error(await r.text());
-  const name=((r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/)||[])[1] || 'tiktok.mp4';
-  saveBlob(await r.blob(),name);
-  return name;
-}
 
 async function download(){
   const u=(dl.value.match(/https?:\/\/\S+/)||[])[0];
@@ -638,9 +631,14 @@ async function download(){
     return;
   }
   if(TT_PROXY){
-    say('đang tải qua Worker…','note',dlOut);
-    try{ say('Đã tải: '+await viaProxy(u),'note',dlOut); return; }
-    catch(e){ /* Worker hỏng hoặc hết lượt -> thử đường thẳng bên dưới */ }
+    // Để trình duyệt tự tải (Worker trả Content-Disposition: attachment): có tiến độ + tốc độ ở thanh
+    // tải xuống và ghi ra đĩa ngay khi dữ liệu về, thay vì kéo hết vào RAM rồi mới lưu — trước đây nhìn
+    // như treo tới lúc xong. Mở ở tab mới: tải được thì trình duyệt tự đóng tab, Worker báo lỗi thì lỗi
+    // hiện ở tab đó và trang này không mất gì. Phải chạy trước mọi await để còn quyền mở tab từ cú bấm.
+    const a=document.createElement('a'); a.href=TT_PROXY+'?url='+encodeURIComponent(u);
+    a.target='_blank'; a.rel='noopener'; a.click();
+    say('Đã chuyển cho trình duyệt tải — xem tiến độ ở thanh tải xuống. Nếu mở ra tab báo lỗi thì đọc lỗi ở tab đó.','note',dlOut);
+    return;
   }
   say('đang lấy link video…','note',dlOut);
   let v;

@@ -11,8 +11,14 @@ export default {
     try { host = new URL(link).hostname; } catch (e) {}
     if (!/(^|\.)tiktok\.com$/.test(host)) return fail('Chỉ nhận link TikTok', 400);
 
-    const j = await fetch('https://www.tikwm.com/api/?url=' + encodeURIComponent(link))
-      .then(r => r.json()).catch(() => null);
+    // tikwm free giới hạn 1 lượt/giây theo IP -> gặp "Limit" thì đợi rồi thử lại, tối đa 3 lần.
+    let j = null;
+    for (let i = 0; i < 3; i++) {
+      j = await fetch('https://www.tikwm.com/api/?url=' + encodeURIComponent(link))
+        .then(r => r.json()).catch(() => null);
+      if (!(j && j.code !== 0 && /limit/i.test(j.msg || ''))) break;
+      await new Promise(r => setTimeout(r, 1100));
+    }
     if (!j || j.code !== 0) return fail((j && j.msg) || 'tikwm không trả lời', 502);
     const d = j.data;
     if (d.images && d.images.length) return fail('Bài này là ảnh (slideshow), không phải video', 422);
