@@ -36,9 +36,25 @@
     font:15px/1.55 system-ui,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
   .wrap{width:100%}
 
-  header{display:flex;align-items:flex-start;gap:16px;margin-bottom:20px}
-  h1{font-size:20px;font-weight:650;letter-spacing:-.01em;margin:0}
-  .sub{color:var(--mut);font-size:13px;margin:3px 0 0;max-width:62ch}
+  [hidden]{display:none!important}
+  /* Header dính trên cùng: đổi tab không phải cuộn ngược lên. */
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;
+    margin:-28px -20px 16px;padding:12px 20px;background:var(--bg);border-bottom:1px solid var(--line)}
+  h1{font-size:18px;font-weight:650;letter-spacing:-.01em;margin:0;white-space:nowrap}
+  .tabs{display:flex;gap:3px;padding:3px;background:var(--sunk);border:1px solid var(--line);border-radius:10px}
+  .tabs a{padding:5px 14px;border-radius:7px;color:var(--mut);text-decoration:none;
+    font-size:14px;font-weight:550;white-space:nowrap;transition:color .15s,background .15s}
+  .tabs a:hover{color:var(--fg)}
+  .tabs a[aria-current]{background:var(--panel);color:var(--fg);box-shadow:var(--sh)}
+  .tabs a:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+  /* Máy hẹp: tên + nút giao diện một hàng, tab chiếm trọn hàng dưới cho dễ bấm. */
+  @media (max-width:560px){
+    body{padding:20px 16px 48px}
+    header{margin:-20px -16px 14px;padding:10px 16px}
+    .tabs{order:3;flex-basis:100%}
+    .tabs a{flex:1;text-align:center;padding:7px 8px}
+  }
+  .sub{color:var(--mut);font-size:13px;margin:0 0 12px;max-width:80ch}
   .sub code{background:var(--sunk);border:1px solid var(--line);border-radius:4px;
     padding:1px 5px;font:12px ui-monospace,Consolas,monospace}
 
@@ -87,15 +103,22 @@
   .count{margin-left:auto;color:var(--mut);font-size:13px;font-variant-numeric:tabular-nums}
 
   .panels{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
-  .panels>.main{flex:1 1 460px}
-  .panels>.geo{flex:1 1 340px;max-width:520px}
-  .panels>.vid{flex:1 1 100%}
+  /* Ô dán link được phần dư gấp đôi; khi rớt hàng thì ô tra địa chỉ trải hết, không chừa khoảng trống. */
+  .panels>.main{flex:2 1 460px}
+  .panels>.geo{flex:1 1 340px}
+  .panels>.dlp{flex:1 1 440px}
+  .panels>.vid{flex:1 1 300px;align-self:stretch;display:flex;flex-direction:column}
+  .drop{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    min-height:96px;padding:14px;border:1px dashed var(--line2);border-radius:8px;
+    color:var(--mut);font-size:13px;text-align:center}
   .ttl{font-size:13px;font-weight:600;margin:0 0 9px}
   /* Video chỉ sống trong tab: blob URL, không upload, không lưu. */
   .vid.drag{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
-  .vid .count{margin-left:0}
-  .vids{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
-  .vids:not(:empty){margin-top:12px}
+  .geo-out a{color:var(--acc)}
+  .bm{display:inline-block;padding:1px 9px;border:1px solid var(--line2);border-radius:999px;
+    color:var(--acc);text-decoration:none;cursor:grab;white-space:nowrap}
+  .vids{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
+  .vids:not(:empty){margin-top:16px}
   .vids figure{margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .vids video{display:block;width:100%;max-height:60vh;background:#000}
   .vids figcaption{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;
@@ -158,14 +181,17 @@
 <body>
 <div class="wrap">
 <header>
-  <div>
-    <h1>GMaps Photo Viewer</h1>
-    <p class="sub">Dán link Google Maps, CSS <code>background-image</code>, hoặc link lh3 thô.
-      Enter để format &amp; hiển thị. Click ảnh mở bản gốc <code>=s0</code>, click dòng link để copy.</p>
-  </div>
+  <h1>GMaps Photo Viewer</h1>
+  <nav class="tabs" aria-label="Chức năng">
+    <a href="#maps">Ảnh &amp; địa chỉ</a>
+    <a href="#video">Video</a>
+  </nav>
   <button id="theme" title="Đổi giao diện"></button>
 </header>
 
+<section data-tab="maps">
+<p class="sub">Dán link Google Maps, CSS <code>background-image</code>, hoặc link lh3 thô.
+  Enter để format &amp; hiển thị. Click ảnh mở bản gốc <code>=s0</code>, click dòng link để copy.</p>
 <div class="panels">
 <div class="panel main">
   <div class="ed">
@@ -207,19 +233,41 @@
   </details>
 </div>
 
-<div class="panel vid" id="vid">
-  <p class="ttl">Xem video</p>
-  <div class="bar" style="margin-top:0">
-    <button id="pick">Chọn video…</button>
-    <input type="file" id="vf" accept="video/*" multiple hidden>
-    <span class="count">hoặc kéo thả file vào khung này — chỉ phát trong máy, không tải lên đâu cả.</span>
-  </div>
-  <div class="vids" id="vids"></div>
-</div>
 </div>
 
 <div class="grid" id="grid" hidden></div>
 <div class="empty" id="empty">Chưa có ảnh nào — dán link vào ô trên rồi nhấn Enter.</div>
+</section>
+
+<section data-tab="video" hidden>
+<div class="panels">
+<div class="panel dlp">
+  <p class="ttl">Tải từ link TikTok / Facebook</p>
+  <div class="row">
+    <input type="text" id="dl" placeholder="Dán link từ nút Chia sẻ của TikTok hoặc Facebook">
+    <button id="dlgo">Tải</button>
+  </div>
+  <div class="geo-out" id="dlOut"></div>
+  <details class="tok" id="fbHelp">
+    <summary>Facebook: tải bằng nút trên thanh dấu trang</summary>
+    <p>Facebook chặn mọi trang khác đọc video, nên việc tải phải chạy ngay trên facebook.com.
+      Kéo nút <a id="fbbm" class="bm" href="#">⬇ Tải video FB</a> lên thanh dấu trang (làm một lần).
+      Sau đó mở link video Facebook, bấm nút đó trên thanh dấu trang là tải về.</p>
+  </details>
+</div>
+
+<div class="panel vid" id="vid">
+  <p class="ttl">Xem video trong máy</p>
+  <div class="drop">
+    <button id="pick">Chọn video…</button>
+    <input type="file" id="vf" accept="video/*" multiple hidden>
+    <span>hoặc kéo thả file vào đây. Chỉ phát trong máy, không tải lên đâu cả.</span>
+  </div>
+</div>
+</div>
+
+<div class="vids" id="vids"></div>
+</section>
 </div>
 
 <script>
@@ -286,6 +334,18 @@ tbtn.onclick=()=>{
   applyTheme(next);
 };
 sysDark.addEventListener('change',()=>{ if(!root.hasAttribute('data-theme')) applyTheme(null); });
+
+/* ---------- tab ---------- */
+// Tab nằm trong #hash: Back/Forward và chia sẻ link đều ra đúng tab, không cần lưu gì.
+// Không có phần tử nào mang id "maps"/"video" nên đổi hash không làm trang nhảy cuộn.
+function showTab(){
+  const t = location.hash==='#video' ? 'video' : 'maps';
+  document.querySelectorAll('[data-tab]').forEach(s=>s.hidden = s.dataset.tab!==t);
+  document.querySelectorAll('.tabs a').forEach(a=>a.hash==='#'+t
+    ? a.setAttribute('aria-current','page') : a.removeAttribute('aria-current'));
+}
+addEventListener('hashchange',showTab);
+showTab();
 
 /* ---------- hiển thị ---------- */
 const ta=document.getElementById('in'), grid=document.getElementById('grid'),
@@ -470,8 +530,8 @@ const line=(label,text)=>{
   });
   return d;
 };
-const say=(msg,cls)=>{ geoOut.innerHTML=''; const d=document.createElement('div');
-  d.className=cls||'note'; d.textContent=msg; geoOut.append(d); };
+const say=(msg,cls,out=geoOut)=>{ out.innerHTML=''; const d=document.createElement('div');
+  d.className=cls||'note'; d.textContent=msg; out.append(d); };
 
 async function lookup(){
   const p = parseLL(ll.value.trim());
@@ -523,6 +583,85 @@ vid.addEventListener('dragover',e=>{ e.preventDefault(); vid.classList.add('drag
 vid.addEventListener('dragleave',e=>{ if(!vid.contains(e.relatedTarget)) vid.classList.remove('drag'); });
 vid.addEventListener('drop',e=>{ e.preventDefault(); vid.classList.remove('drag'); addVideos(e.dataTransfer.files); });
 
+/* ---------- tải video TikTok / Facebook từ link Chia sẻ ---------- */
+const dl=document.getElementById('dl'), dlOut=document.getElementById('dlOut'), fbHelp=document.getElementById('fbHelp');
+function platform(u){
+  let h=''; try{ h=new URL(u).hostname; }catch(e){}
+  return /(^|\.)tiktok\.com$/.test(h) ? 'tiktok'
+       : /(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(h) ? 'facebook' : null;
+}
+const addLink=(text,href)=>{ const a=document.createElement('a'); a.textContent=text; a.href=href;
+  a.target='_blank'; a.rel='noopener noreferrer'; dlOut.append(a); };
+
+// TikTok tự gọi thẳng được: cả tikwm.com lẫn CDN video đều trả Access-Control-Allow-Origin: *.
+// ponytail: phụ thuộc 1 dịch vụ ngoài (tikwm, free ~1 lượt/giây); nó chết thì thay endpoint ở đây.
+async function tiktok(u){
+  const j=await fetch('https://www.tikwm.com/api/?hd=1&url='+encodeURIComponent(u)).then(r=>r.json());
+  if(!j || j.code!==0) throw new Error((j && j.msg) || 'tikwm trả lỗi');
+  const d=j.data;
+  if(d.images && d.images.length) throw new Error('bài này là ảnh (slideshow), không phải video');
+  const abs=p=>p && p.startsWith('/') ? 'https://www.tikwm.com'+p : p;  // đôi khi tikwm trả đường dẫn tương đối
+  return {url:abs(d.hdplay||d.play), name:'tiktok_'+((d.author && d.author.unique_id)||'')+'_'+d.id+'.mp4', title:d.title};
+}
+
+// a[download] bị bỏ qua với link khác origin -> phải kéo về thành blob thì mới đặt được tên file.
+async function saveUrl(u,name){
+  try{
+    const b=await fetch(u).then(r=>{ if(!r.ok) throw new Error(r.status); return r.blob(); });
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),60e3);  // thu hồi ngay thì vài trình duyệt huỷ tải
+    return true;
+  }catch(e){ return false; }
+}
+
+async function download(){
+  const u=(dl.value.match(/https?:\/\/\S+/)||[])[0];
+  const p=u && platform(u);
+  if(!p){ say('Dán link chia sẻ của TikTok hoặc Facebook.','bad',dlOut); return; }
+  if(p==='facebook'){
+    fbHelp.open=true;
+    say('Facebook không cho trang khác lấy video. Mở link rồi bấm nút "⬇ Tải video FB" trên thanh dấu trang (xem hướng dẫn bên dưới).','note',dlOut);
+    addLink('Mở video trên Facebook ↗',u);
+    return;
+  }
+  say('đang lấy link video…','note',dlOut);
+  let v;
+  try{ v=await tiktok(u); }
+  catch(e){ say('Không lấy được video: '+e.message,'bad',dlOut); return; }
+  say('đang tải '+v.name+'…','note',dlOut);
+  if(await saveUrl(v.url,v.name)) say('Đã tải: '+v.name+(v.title ? ' — '+v.title : ''),'note',dlOut);
+  else { say('Không tải thẳng được. Mở video rồi chuột phải → Lưu video:','bad',dlOut); addLink('Mở video ↗',v.url); }
+}
+document.getElementById('dlgo').onclick=download;
+dl.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); download(); } });
+
+// Chạy trên facebook.com qua bookmarklet, KHÔNG chạy ở trang này (trừ self-check).
+// Khi trang video FB đã nạp xong, HTML có "browser_native_hd_url" = mp4 liền tiếng, không cần đăng nhập.
+function fbGrab(h,href,go){
+  const id=(href.match(/(?:videos\/(?:[^/?]+\/)?|reel\/|[?&]v=)(\d+)/)||[])[1];
+  const J=s=>JSON.parse('"'+s+'"');
+  // Trang reel nạp sẵn cả loạt reel kế tiếp, mỗi cái một link. "id" ĐẦU TIÊN sau mỗi link là id của
+  // chính video đó (id reel kế tiếp cũng nằm quanh đó, nên chỉ "có chứa id" là chọn nhầm) — đã đối chiếu trên reel thật.
+  const hit=id && [...h.matchAll(/"browser_native_hd_url":"([^"]+)"/g)]
+    .find(m=>(h.slice(m.index).match(/"id":"(\d+)"/)||[])[1]===id);
+  let u=hit ? J(hit[1]) : undefined;
+  if(!u) for(const k of ['browser_native_hd_url','browser_native_sd_url','playable_url_quality_hd','playable_url']){
+    const m=h.match(new RegExp('"'+k+'":"([^"]+)"')); if(m){ u=J(m[1]); break; } }
+  if(!go) return u;
+  if(!u) return alert('Không thấy link video. Bấm phát video, đợi vài giây rồi bấm lại.');
+  const t=document.body.appendChild(document.createElement('div'));
+  t.style.cssText='position:fixed;z-index:2147483647;top:12px;left:50%;transform:translateX(-50%);'
+    +'background:#111;color:#fff;padding:8px 14px;border-radius:8px;font:14px sans-serif';
+  t.textContent='Đang tải video…';
+  fetch(u).then(r=>r.blob()).then(b=>{
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='facebook_'+(id||Date.now())+'.mp4'; a.click(); t.remove();
+  }).catch(()=>{ t.remove(); location.assign(u); });
+}
+const fbbm=document.getElementById('fbbm');
+fbbm.href='javascript:'+encodeURIComponent('('+fbGrab+')(document.documentElement.innerHTML,location.href,1)');
+fbbm.onclick=e=>{ e.preventDefault(); alert('Kéo nút này lên thanh dấu trang, rồi bấm nó khi đang mở video trên facebook.com.'); };
+
 /* ---------- self-check ---------- */
 (function(){
   const id='gps-cs-s/ABC123';
@@ -563,6 +702,20 @@ vid.addEventListener('drop',e=>{ e.preventDefault(); vid.classList.remove('drag'
   console.assert(dropLine('a\nb\nc\n',2)==='a\nb\n','xoa cuoi');
   console.assert(dropLine('a\nb',0)==='b\n','xoa dau, thieu \\n cuoi');
   console.assert(dropLine('a\n',0)==='','xoa het thi rong hoan toan');
+
+  console.assert(platform('https://vt.tiktok.com/ZSabc/')==='tiktok','pf tiktok ngan');
+  console.assert(platform('https://www.tiktok.com/@a/video/1')==='tiktok','pf tiktok dai');
+  console.assert(platform('https://www.facebook.com/share/v/1AbC/')==='facebook','pf fb share');
+  console.assert(platform('https://fb.watch/xyz/')==='facebook','pf fb.watch');
+  console.assert(platform('https://eviltiktok.com/x')===null && platform('abc')===null,'pf la');
+  // Giống trang reel thật: id đứng ngay sau link của chính nó; id reel kế tiếp (222) cũng lọt vào đoạn của reel trước.
+  const fh='"id":"222" "browser_native_hd_url":"https:\\/\\/v.fbcdn.net\\/a.mp4?x=1" "id":"111" "next":{"id":"222"}'
+          +' "browser_native_hd_url":"https:\\/\\/v.fbcdn.net\\/b.mp4" "id":"222"';
+  console.assert(fbGrab(fh,'https://www.facebook.com/reel/111')==='https://v.fbcdn.net/a.mp4?x=1','fb reel dau');
+  console.assert(fbGrab(fh,'https://www.facebook.com/reel/222')==='https://v.fbcdn.net/b.mp4','fb reel da luot sang');
+  console.assert(fbGrab(fh,'https://www.facebook.com/p/videos/ten-video/222/')==='https://v.fbcdn.net/b.mp4','fb videos/slug/id');
+  console.assert(fbGrab(fh,'https://www.facebook.com/watch/?v=999')==='https://v.fbcdn.net/a.mp4?x=1','fb id khong thay');
+  console.assert(fbGrab('trong','https://www.facebook.com/reel/1')===undefined,'fb khong co video');
 })();
 </script>
 </body>

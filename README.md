@@ -52,13 +52,36 @@ Dùng API công khai của [gis.vn](https://gis.vn/api) (`vn2000.vn/api/location
 
 Đây là phần **duy nhất** cần mạng. Phần xem ảnh chạy hoàn toàn cục bộ.
 
+## Tải video TikTok / Facebook
+
+Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải từ link* ở tab **Video**, nhấn **Tải** (hoặc Enter).
+
+- **TikTok** (`vt.tiktok.com/…`, `www.tiktok.com/@…/video/…`): tải thẳng bản HD không logo, tên file
+  `tiktok_<tác giả>_<id>.mp4`. Trang gửi link cho [tikwm.com](https://www.tikwm.com) để lấy link video
+  (dịch vụ ngoài duy nhất của phần này, giới hạn ~1 lượt/giây). Bài slideshow ảnh thì báo không hỗ trợ.
+- **Facebook** (`facebook.com/share/v/…`, `/reel/…`, `/videos/…`, `fb.watch/…`): Facebook chặn mọi trang
+  khác đọc video, nên dùng **bookmarklet**: kéo nút *⬇ Tải video FB* lên thanh dấu trang một lần, sau đó
+  mở link video Facebook và bấm nút đó. Nó đọc link mp4 HD ngay trên trang FB rồi tải về
+  `facebook_<id>.mp4` — không qua máy chủ nào, không cần đăng nhập với video công khai.
+  Trên điện thoại: lưu bookmark, rồi gõ tên bookmark vào thanh địa chỉ khi đang mở video.
+
+Không có gì được lưu lại: link chỉ nằm trong ô nhập, file tải về đi thẳng vào máy bạn.
+
 ## Xem video
 
-Bấm **Chọn video…** hoặc kéo thả file vào khung *Xem video* — chọn nhiều file cùng lúc được.
+Bấm **Chọn video…** hoặc kéo thả file vào khung *Xem video trong máy* ở tab **Video** — chọn nhiều file cùng lúc được.
 Video phát ngay trong trình duyệt, **không tải lên đâu và không lưu lại**: tải lại trang là mất.
 Nút `×` đóng video và giải phóng bộ nhớ. Phát được định dạng nào tuỳ trình duyệt (mp4/webm thì chắc chắn).
 
 ## Giao diện
+
+Hai tab trên thanh đầu trang (thanh này dính trên cùng khi cuộn):
+
+- **Ảnh & địa chỉ** — ô dán link ảnh và ô tra toạ độ nằm cạnh nhau, lưới ảnh ngay bên dưới.
+- **Video** — tải từ link TikTok/Facebook và xem file trong máy nằm cạnh nhau, video phát bên dưới.
+
+Tab nằm trên địa chỉ trang (`#video`), nên nút Back và việc gửi link cho người khác đều mở đúng tab.
+Màn hẹp (≤560px) thì các khung xếp chồng, tab chiếm trọn một hàng cho dễ bấm.
 
 Sáng / tối, theo hệ thống hoặc bấm nút ở góc phải để chọn tay (nhớ qua `localStorage`).
 Khung trải hết bề ngang màn, lưới tự thêm cột: 1 cột ở 375px, 9 cột ở 2560px.
