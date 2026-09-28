@@ -59,12 +59,15 @@ Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải
 - **TikTok** (`vt.tiktok.com/…`, `www.tiktok.com/@…/video/…`): tải thẳng bản không logo nén H.264 (bản HD của TikTok thường là H.265 — nhiều máy phát ra màn đen chỉ còn tiếng), tên file
   `tiktok_<tác giả>_<id>.mp4`. Trang gửi link cho [tikwm.com](https://www.tikwm.com) để lấy link video
   (dịch vụ ngoài duy nhất của phần này, giới hạn ~1 lượt/giây). Bài slideshow ảnh thì báo không hỗ trợ.
+  Có Worker (mục dưới) thì Worker đọc thẳng trang TikTok để lấy video, tikwm chỉ còn làm dự phòng — bản
+  free của tikwm giới hạn 10.000 lượt/ngày *theo IP*, mà IP Cloudflare dùng chung nên hay hết lượt.
 - **Facebook** (`facebook.com/reel/…`, `/share/r/…`, `/share/v/…`, `fb.watch/…`): cũng tải qua Worker
-  (mục dưới) — Worker mở trang video không đăng nhập, bóc link mp4 rồi trả về. Reel đã chạy; trang
-  `/videos/…` / `/watch?v=…` cũ thì Facebook hay chặn IP Cloudflare. Bản HD của reel thường là **AV1 1080p**:
-  Chrome/Edge/Firefox phát được, Windows cần *AV1 Video Extension* (miễn phí, Win 11 thường có sẵn).
-  Dự phòng (video riêng tư, chỉ bạn bè, hoặc Worker lỗi): **bookmarklet** — kéo nút *⬇ Tải video FB* lên
-  thanh dấu trang, mở video trên Facebook rồi bấm nút đó; nó chạy với tài khoản bạn đang đăng nhập.
+  (mục dưới). Facebook trả trang **không có video** cho mọi IP Cloudflare (09/2026), nên Worker nhờ
+  [`fbrelay.py`](fbrelay.py) trên một máy mạng nhà tải trang HTML, bóc link mp4, rồi tự kéo video từ CDN của FB.
+  Mặc định lấy bản **H.264** (phát được mọi nơi): HD nếu HD là H.264, không thì SD — vì HD của reel thường là
+  AV1 hoặc VP9, máy thiếu codec phát ra màn đen. Tích ô *lấy bản nét nhất* để lấy HD 1080p bất kể codec.
+  Dự phòng (video riêng tư, chỉ bạn bè, hoặc máy nhà tắt): **bookmarklet** — kéo nút *⬇ Tải video FB* lên
+  thanh dấu trang (Ctrl+Shift+B để hiện thanh), mở video trên Facebook rồi bấm nút đó.
 
 ### Cloudflare Worker (TikTok khi mạng chặn CDN, và Facebook)
 
@@ -78,6 +81,12 @@ Cloudflare Worker của riêng bạn — miễn phí 100.000 lượt/ngày, khô
 
 Có `VIDEO_PROXY` thì TikTok và Facebook đều tải qua Worker (trình duyệt tự tải, có thanh tiến độ).
 Worker chỉ nhận link TikTok/Facebook, nên người khác không mượn nó làm proxy cho trang bất kỳ được.
+
+**Facebook cần thêm máy nhà** chạy [`fbrelay.py`](fbrelay.py) (Python 3, không cần thư viện ngoài), mở ra
+ngoài bằng Cloudflare Tunnel (bản hiện tại: `fbx.120203.xyz` → `localhost:8787`, service systemd `fbrelay`).
+Khoá chung: `FB_RELAY_KEY` trong `~/fbrelay/fbrelay.env` trên máy nhà = secret cùng tên của Worker
+(`npx wrangler secret put FB_RELAY_KEY --name gmaps-tiktok`). Relay chỉ trả trang HTML của link Facebook cho
+ai có khoá; video không đi qua máy nhà.
 
 Không có gì được lưu lại: link chỉ nằm trong ô nhập, file tải về đi thẳng vào máy bạn.
 

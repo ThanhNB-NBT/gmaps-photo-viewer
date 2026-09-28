@@ -5,13 +5,31 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Header
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 const fail = (msg, status) => new Response(msg, { status, headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8' } });
 
-async function tiktok(link) {
+// Lấy thẳng từ trang TikTok: JSON __UNIVERSAL_DATA_FOR_REHYDRATION__ có sẵn link video, nhưng CDN đòi đúng
+// cookie (tt_chain_token) mà trang vừa đặt -> phải gửi kèm lúc tải. tikwm chỉ còn là dự phòng: bản free giới
+// hạn 10.000 lượt/ngày theo IP, mà IP ra của Cloudflare dùng chung với cả thiên hạ nên hay hết lượt.
+async function tiktokPage(link) {
+  const r = await fetch(link, { headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Accept-Language': 'en-US,en;q=0.9' } });
+  const m = (await r.text()).match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([^<]+)</);
+  const it = m && JSON.parse(m[1]).__DEFAULT_SCOPE__['webapp.video-detail']?.itemInfo?.itemStruct;
+  if (!it || !it.video) throw new Error('TikTok không trả dữ liệu video');
+  if (it.imagePost) throw new Error('Bài này là ảnh (slideshow), không phải video');
+  // Bản H.264 nét nhất. H.265 nhiều máy phát ra màn đen.
+  const b = (it.video.bitrateInfo || []).filter(x => /h264/i.test(x.CodecType)).sort((x, y) => y.Bitrate - x.Bitrate)[0];
+  const url = (b && b.PlayAddr.UrlList[0]) || it.video.playAddr;
+  if (!url) throw new Error('TikTok không trả link video');
+  const Cookie = r.headers.getSetCookie().map(c => c.split(';')[0]).join('; ');
+  return { url, name: 'tiktok_' + ((it.author && it.author.uniqueId) || '') + '_' + it.id + '.mp4',
+    headers: { Cookie, Referer: 'https://www.tiktok.com/' } };
+}
+
+async function tikwm(link) {
   // tikwm free giới hạn 1 lượt/giây theo IP -> gặp "Limit" thì đợi rồi thử lại, tối đa 3 lần.
   let j = null;
   for (let i = 0; i < 3; i++) {
     j = await fetch('https://www.tikwm.com/api/?url=' + encodeURIComponent(link))
       .then(r => r.json()).catch(() => null);
-    if (!(j && j.code !== 0 && /limit/i.test(j.msg || ''))) break;
+    if (!(j && j.code !== 0 && /limit/i.test(j.msg || '') && !/day/i.test(j.msg))) break;
     await new Promise(r => setTimeout(r, 1100));
   }
   if (!j || j.code !== 0) throw new Error((j && j.msg) || 'tikwm không trả lời');
@@ -23,33 +41,55 @@ async function tiktok(link) {
   return { url: u, name: 'tiktok_' + ((d.author && d.author.unique_id) || '') + '_' + d.id + '.mp4' };
 }
 
-// Trang video/reel FB công khai, tải KHÔNG đăng nhập với UA trình duyệt, vẫn có "browser_native_hd_url"
-// (mp4 liền tiếng, H.264). Trang reel nạp sẵn cả loạt reel kế tiếp: "id" ĐẦU TIÊN sau mỗi link là id của
-// chính video đó — cùng cách chọn với bookmarklet trong index.html, đã đối chiếu trên reel thật.
-const fbId = href => (href.match(/(?:videos\/(?:[^/?]+\/)?|reel\/|[?&]v=)(\d+)/) || [])[1];
-function fbPick(h, id) {
-  const J = s => JSON.parse('"' + s + '"');
-  const hit = id && [...h.matchAll(/"browser_native_hd_url":"([^"]+)"/g)]
-    .find(m => (h.slice(m.index).match(/"id":"(\d+)"/) || [])[1] === id);
-  if (hit) return J(hit[1]);
-  for (const k of ['browser_native_hd_url', 'browser_native_sd_url', 'playable_url_quality_hd', 'playable_url']) {
-    const m = h.match(new RegExp('"' + k + '":"([^"]+)"'));
-    if (m) return J(m[1]);
-  }
-}
-async function facebook(link) {
-  // Link chia sẻ (/share/v/..., fb.watch) tự chuyển hướng về /reel/<id> hoặc /watch?v=<id>: lấy id từ URL cuối.
-  const r = await fetch(link, { headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' } });
-  const id = fbId(r.url || link) || fbId(link);
-  const u = fbPick(await r.text(), id);
-  if (!u) throw new Error('Không thấy video — video riêng tư/giới hạn người xem, hoặc Facebook đòi đăng nhập. '
-    + 'Thử nút "⬇ Tải video FB" trên thanh dấu trang (mục Dự phòng trong trang GMaps Photo Viewer).');
-  return { url: u, name: 'facebook_' + (id || Date.now()) + '.mp4' };
+async function tiktok(link) {
+  try { return await tiktokPage(link); }
+  catch (e) { return tikwm(link).catch(e2 => { throw new Error(e.message + ' (dự phòng tikwm: ' + e2.message + ')'); }); }
 }
 
+// Trang video/reel FB công khai, tải KHÔNG đăng nhập với UA trình duyệt, có "browser_native_hd_url"
+// (mp4 liền tiếng). Trang reel nạp sẵn cả loạt reel kế tiếp: "id" ĐẦU TIÊN sau mỗi link là id của
+// chính video đó — cùng cách chọn với bookmarklet trong index.html, đã đối chiếu trên reel thật.
+const fbId = href => (href.match(/(?:videos\/(?:[^/?]+\/)?|reel\/|[?&]v=)(\d+)/) || [])[1];
+// HD của reel thường là AV1 (av1_compressed_source) hoặc VP9 (compressed_source) — máy thiếu codec
+// phát ra màn đen. Chỉ bản có "h264" trong vencode_tag và SD (sve_sd) là H.264 -> mặc định chỉ lấy HD khi
+// nó là H.264, không thì lấy SD. hd=true: lấy HD bất kể codec (nét hơn, nhưng cần codec AV1/VP9).
+const vtag = u => { try { return JSON.parse(atob(new URL(u).searchParams.get('efg'))).vencode_tag || ''; } catch (e) { return ''; } };
+function fbPick(h, id, hd) {
+  const J = s => JSON.parse('"' + s + '"');
+  const all = [...h.matchAll(/"browser_native_(hd|sd)_url":"([^"]+)"/g)]
+    .map(m => ({ q: m[1], u: J(m[2]), id: (h.slice(m.index).match(/"id":"(\d+)"/) || [])[1] }));
+  let mine = all.filter(x => x.id === id);
+  if (!mine.length && all.length) mine = all.filter(x => x.id === all[0].id);  // không khớp id -> video đầu trang
+  const H = mine.find(x => x.q === 'hd'), S = mine.find(x => x.q === 'sd');
+  if (H && (hd || /h264/i.test(vtag(H.u)))) return { url: H.u, q: 'hd' };
+  if (S || H) return { url: (S || H).u, q: S ? 'sd' : 'hd' };
+  for (const k of ['playable_url_quality_hd', 'playable_url']) {
+    const m = h.match(new RegExp('"' + k + '":"([^"]+)"'));
+    if (m) return { url: J(m[1]), q: 'hd' };
+  }
+}
+
+// Facebook trả trang KHÔNG có link video cho mọi IP Cloudflare (09/2026: thử reel, /videos/, m., mbasic.,
+// trang nhúng, UA crawler — đều rỗng), nhưng trả đủ cho IP nhà mạng. Nên chỉ khâu tải trang HTML đi vòng
+// qua fbrelay.py chạy trên máy nhà (Cloudflare Tunnel; khoá FB_RELAY_KEY là secret của Worker). Video mp4
+// vẫn kéo thẳng từ CDN của FB như trước.
+const FB_RELAY = 'https://fbx.120203.xyz';
+async function facebook(link, hd, env) {
+  const r = await fetch(FB_RELAY + '/?url=' + encodeURIComponent(link), { headers: { 'X-Key': env.FB_RELAY_KEY || '' } });
+  if (!r.ok) throw new Error('Máy chuyển tiếp Facebook trả ' + r.status + ' — máy nhà tắt hoặc mất mạng? '
+    + 'Tạm dùng nút "⬇ Tải video FB" trên thanh dấu trang.');
+  // Link chia sẻ (/share/v/..., fb.watch) tự chuyển hướng về /reel/<id> hoặc /watch?v=<id>: lấy id từ URL cuối.
+  const id = fbId(r.headers.get('X-Final-URL') || link) || fbId(link);
+  const v = fbPick(await r.text(), id, hd);
+  if (!v) throw new Error('Không thấy video — video riêng tư/giới hạn người xem, hoặc Facebook đòi đăng nhập. '
+    + 'Thử nút "⬇ Tải video FB" trên thanh dấu trang (mục Facebook trong trang GMaps Photo Viewer).');
+  return { url: v.url, name: 'facebook_' + (id || Date.now()) + '_' + v.q + '.mp4' };
+}
+
+export { fbPick };  // cho self-check chạy bằng Node
+
 export default {
-  async fetch(req) {
+  async fetch(req, env) {
     const link = new URL(req.url).searchParams.get('url') || '';
     let host = '';
     try { host = new URL(link).hostname; } catch (e) {}
@@ -58,8 +98,8 @@ export default {
     if (!get) return fail('Chỉ nhận link TikTok hoặc Facebook', 400);
 
     let v;
-    try { v = await get(link); } catch (e) { return fail(e.message, 502); }
-    const r = await fetch(v.url, { headers: { 'User-Agent': UA } });
+    try { v = await get(link, new URL(req.url).searchParams.get('q') === 'hd', env); } catch (e) { return fail(e.message, 502); }
+    const r = await fetch(v.url, { headers: { 'User-Agent': UA, ...v.headers } });
     if (!r.ok) return fail('Máy chủ video trả ' + r.status, 502);
     const h = { ...CORS, 'Content-Type': 'video/mp4', 'Content-Disposition': `attachment; filename="${v.name}"` };
     if (r.headers.get('Content-Length')) h['Content-Length'] = r.headers.get('Content-Length');
