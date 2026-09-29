@@ -52,7 +52,7 @@ Dùng API công khai của [gis.vn](https://gis.vn/api) (`vn2000.vn/api/location
 
 Đây là phần **duy nhất** cần mạng. Phần xem ảnh chạy hoàn toàn cục bộ.
 
-## Tải video TikTok / Facebook
+## Tải video TikTok / Facebook / Google Maps
 
 Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải từ link* ở tab **Video**, nhấn **Tải** (hoặc Enter).
 
@@ -68,6 +68,10 @@ Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải
   AV1 hoặc VP9, máy thiếu codec phát ra màn đen. Tích ô *lấy bản nét nhất* để lấy HD 1080p bất kể codec.
   Dự phòng (video riêng tư, chỉ bạn bè, hoặc máy nhà tắt): **bookmarklet** — kéo nút *⬇ Tải video FB* lên
   thanh dấu trang (Ctrl+Shift+B để hiện thanh), mở video trên Facebook rồi bấm nút đó.
+
+- **Video Google Maps**: dán link Maps đang mở video (hoặc link lh3 của nó) vào cùng ô *Tải từ link*. Trang
+  thêm `=dv` vào id lh3 — Google chuyển sang file **mp4 gốc** và trình duyệt tải thẳng, không qua Worker.
+  Link của ảnh thì báo "là ảnh, không phải video". (`=m18` cũng ra mp4 nhưng chỉ 360p, link khoá theo IP.)
 
 ### Cloudflare Worker (TikTok khi mạng chặn CDN, và Facebook)
 

@@ -244,9 +244,9 @@
 <section data-tab="video" hidden>
 <div class="panels">
 <div class="panel dlp">
-  <p class="ttl">Tải từ link TikTok / Facebook</p>
+  <p class="ttl">Tải từ link TikTok / Facebook / video Google Maps</p>
   <div class="row">
-    <input type="text" id="dl" placeholder="Dán link từ nút Chia sẻ của TikTok hoặc Facebook">
+    <input type="text" id="dl" placeholder="Dán link Chia sẻ của TikTok/Facebook, hoặc link video Google Maps / lh3">
     <button id="dlgo">Tải</button>
   </div>
   <label class="sz hdopt"><input type="checkbox" id="fbhd"> Facebook: lấy bản nét nhất (1080p, thường là AV1/VP9 —
@@ -626,10 +626,26 @@ async function saveUrl(u,name){
 // fbrelay.py trên máy nhà vì FB chặn IP Cloudflare). Để trống = TikTok gọi thẳng tikwm, FB quay về bookmarklet.
 const VIDEO_PROXY='https://gmaps-tiktok.novelnbt.workers.dev';
 
+// Video người dùng đăng lên Google Maps dùng chung kiểu id lh3 với ảnh. Thêm "=dv" thì lh3 chuyển (302) sang
+// file mp4 GỐC trên drum.usercontent.google.com, tự trả Content-Disposition: attachment -> trình duyệt tải thẳng,
+// không cần Worker. (=m18 cũng ra mp4 nhưng chỉ 360p và link googlevideo khoá theo IP người mở.)
+// Id của ẢNH thì =dv trả 500 (không có ACAO -> fetch ném lỗi), nên hỏi trước bằng redirect:'manual':
+// video thì ra opaqueredirect.
+async function gmapsVideo(b){
+  say('đang kiểm tra video…','note',dlOut);
+  let r; try{ r=await fetch(b+'=dv',{redirect:'manual'}); }catch(e){}
+  if(!r || r.type!=='opaqueredirect'){ say('Link này là ảnh, không phải video (hoặc Google không trả video cho link này).','bad',dlOut); return; }
+  // Cùng tab vẫn an toàn: phản hồi là attachment nên trình duyệt chỉ tải, không rời trang.
+  const a=document.createElement('a'); a.href=b+'=dv'; a.click();
+  say('Đã chuyển cho trình duyệt tải video gốc — xem tiến độ ở thanh tải xuống.','note',dlOut);
+}
+
 async function download(){
+  const g=extract(dl.value)[0];  // link Maps đầy đủ / lh3 thô / CSS — cùng cách bóc với phần xem ảnh
+  if(g) return gmapsVideo(base(g));
   const u=(dl.value.match(/https?:\/\/\S+/)||[])[0];
   const p=u && platform(u);
-  if(!p){ say('Dán link chia sẻ của TikTok hoặc Facebook.','bad',dlOut); return; }
+  if(!p){ say('Dán link chia sẻ của TikTok/Facebook, hoặc link video Google Maps.','bad',dlOut); return; }
   if(VIDEO_PROXY){
     // Để trình duyệt tự tải (Worker trả Content-Disposition: attachment): có tiến độ + tốc độ ở thanh
     // tải xuống và ghi ra đĩa ngay khi dữ liệu về, thay vì kéo hết vào RAM rồi mới lưu — trước đây nhìn
