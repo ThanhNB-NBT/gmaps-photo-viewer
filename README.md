@@ -69,9 +69,14 @@ Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải
   Dự phòng (video riêng tư, chỉ bạn bè, hoặc máy nhà tắt): **bookmarklet** — kéo nút *⬇ Tải video FB* lên
   thanh dấu trang (Ctrl+Shift+B để hiện thanh), mở video trên Facebook rồi bấm nút đó.
 
-- **Video Google Maps**: dán link Maps đang mở video (hoặc link lh3 của nó) vào cùng ô *Tải từ link*. Trang
-  thêm `=dv` vào id lh3 — Google chuyển sang file **mp4 gốc** và trình duyệt tải thẳng, không qua Worker.
-  Link của ảnh thì báo "là ảnh, không phải video". (`=m18` cũng ra mp4 nhưng chỉ 360p, link khoá theo IP.)
+- **Video Google Maps**: dán link Maps đang mở video (hoặc link lh3 của nó) vào cùng ô *Tải từ link*.
+  Thêm `=dv` vào id lh3 thì Google chuyển sang file **mp4 gốc**. Có Worker thì tải qua Worker (để đặt được tên
+  file); không có thì trình duyệt tải thẳng, tên do Google đặt. Link của ảnh thì báo "là ảnh, không phải video".
+  (`=m18` cũng ra mp4 nhưng chỉ 360p, link khoá theo IP.)
+
+Ô **Tên file** dưới ô link: điền thì file tải về mang tên đó (có dấu tiếng Việt được, tự thêm `.mp4`, ký tự
+Windows cấm như `\ / : * ? " < > |` bị thay bằng dấu cách). Để trống thì dùng tên mặc định
+(`tiktok_<tác giả>_<id>`, `facebook_<id>_<hd|sd>`, `gmaps_<đuôi id>`). Kiểm tra phần đặt tên: `node check-worker.mjs`.
 
 ### Cloudflare Worker (TikTok khi mạng chặn CDN, và Facebook)
 

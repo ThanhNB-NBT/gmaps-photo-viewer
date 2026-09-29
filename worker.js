@@ -86,7 +86,26 @@ async function facebook(link, hd, env) {
   return { url: v.url, name: 'facebook_' + (id || Date.now()) + '_' + v.q + '.mp4' };
 }
 
-export { fbPick };  // cho self-check chạy bằng Node
+// Video người dùng đăng lên Google Maps: id lh3 + "=dv" -> lh3 chuyển (302) sang mp4 GỐC trên
+// drum.usercontent.google.com. Id của ảnh thì =dv trả 500 -> hỏi trước bằng redirect:'manual' để báo lỗi rõ.
+// Đi qua Worker (thay vì trình duyệt tải thẳng) chỉ để đặt được tên file: a[download] bị bỏ qua khi khác origin.
+async function gmaps(link) {
+  const b = link.split('=')[0];
+  const r = await fetch(b + '=dv', { redirect: 'manual' });
+  if (r.status < 300 || r.status > 399) throw new Error('Link này là ảnh, không phải video (Google trả ' + r.status + ')');
+  return { url: b + '=dv', name: 'gmaps_' + b.slice(-12) + '.mp4' };
+}
+
+// Tên file người dùng tự điền: bỏ ký tự Windows cấm, thêm .mp4 nếu thiếu. Rỗng -> tên mặc định.
+function fileName(s, def) {
+  s = (s || '').replace(/[\x00-\x1f\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').replace(/^[.\s]+|[.\s]+$/g, '').slice(0, 150);
+  return !s ? def : /\.mp4$/i.test(s) ? s : s + '.mp4';
+}
+// Tên có dấu (tiếng Việt) phải đi qua filename* (RFC 5987); filename="" chỉ để lại bản ASCII cho máy cũ.
+const disposition = n => `attachment; filename="${n.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''`
+  + encodeURIComponent(n).replace(/['()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+
+export { fbPick, fileName, disposition };  // cho self-check chạy bằng Node
 
 export default {
   async fetch(req, env) {
@@ -94,14 +113,16 @@ export default {
     let host = '';
     try { host = new URL(link).hostname; } catch (e) {}
     const get = /(^|\.)tiktok\.com$/.test(host) ? tiktok
-              : /(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(host) ? facebook : null;
-    if (!get) return fail('Chỉ nhận link TikTok hoặc Facebook', 400);
+              : /(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(host) ? facebook
+              : /^lh\d\.googleusercontent\.com$/.test(host) ? gmaps : null;
+    if (!get) return fail('Chỉ nhận link TikTok, Facebook hoặc video Google Maps (lh3)', 400);
 
+    const q = new URL(req.url).searchParams;
     let v;
-    try { v = await get(link, new URL(req.url).searchParams.get('q') === 'hd', env); } catch (e) { return fail(e.message, 502); }
+    try { v = await get(link, q.get('q') === 'hd', env); } catch (e) { return fail(e.message, 502); }
     const r = await fetch(v.url, { headers: { 'User-Agent': UA, ...v.headers } });
     if (!r.ok) return fail('Máy chủ video trả ' + r.status, 502);
-    const h = { ...CORS, 'Content-Type': 'video/mp4', 'Content-Disposition': `attachment; filename="${v.name}"` };
+    const h = { ...CORS, 'Content-Type': 'video/mp4', 'Content-Disposition': disposition(fileName(q.get('name'), v.name)) };
     if (r.headers.get('Content-Length')) h['Content-Length'] = r.headers.get('Content-Length');
     return new Response(r.body, { headers: h });
   },

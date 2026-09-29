@@ -144,6 +144,7 @@
   .tok{margin-top:10px;font-size:12px;color:var(--mut)}
   .tok summary{cursor:pointer}
   .tok .row{margin-top:7px}
+  .dlp .row+.row{margin-top:8px}
   .tok input{flex:0 1 160px}
   .tok p{margin:6px 0 0;line-height:1.45}
 
@@ -249,6 +250,7 @@
     <input type="text" id="dl" placeholder="Dán link Chia sẻ của TikTok/Facebook, hoặc link video Google Maps / lh3">
     <button id="dlgo">Tải</button>
   </div>
+  <div class="row"><input type="text" id="dlname" placeholder="Tên file (để trống = tên mặc định)"></div>
   <label class="sz hdopt"><input type="checkbox" id="fbhd"> Facebook: lấy bản nét nhất (1080p, thường là AV1/VP9 —
     máy thiếu codec sẽ ra màn đen). Bỏ tích: bản H.264 phát được mọi nơi.</label>
   <div class="geo-out" id="dlOut"></div>
@@ -626,6 +628,7 @@ async function saveUrl(u,name){
 // fbrelay.py trên máy nhà vì FB chặn IP Cloudflare). Để trống = TikTok gọi thẳng tikwm, FB quay về bookmarklet.
 const VIDEO_PROXY='https://gmaps-tiktok.novelnbt.workers.dev';
 
+// Video Google Maps khi KHÔNG có Worker (có Worker thì đi qua Worker như TikTok, để đặt được tên file).
 // Video người dùng đăng lên Google Maps dùng chung kiểu id lh3 với ảnh. Thêm "=dv" thì lh3 chuyển (302) sang
 // file mp4 GỐC trên drum.usercontent.google.com, tự trả Content-Disposition: attachment -> trình duyệt tải thẳng,
 // không cần Worker. (=m18 cũng ra mp4 nhưng chỉ 360p và link googlevideo khoá theo IP người mở.)
@@ -642,9 +645,9 @@ async function gmapsVideo(b){
 
 async function download(){
   const g=extract(dl.value)[0];  // link Maps đầy đủ / lh3 thô / CSS — cùng cách bóc với phần xem ảnh
-  if(g) return gmapsVideo(base(g));
-  const u=(dl.value.match(/https?:\/\/\S+/)||[])[0];
-  const p=u && platform(u);
+  const u=g ? base(g) : (dl.value.match(/https?:\/\/\S+/)||[])[0];
+  const p=g ? 'gmaps' : u && platform(u);
+  const name=document.getElementById('dlname').value.trim();  // Worker tự lọc ký tự cấm và thêm .mp4
   if(!p){ say('Dán link chia sẻ của TikTok/Facebook, hoặc link video Google Maps.','bad',dlOut); return; }
   if(VIDEO_PROXY){
     // Để trình duyệt tự tải (Worker trả Content-Disposition: attachment): có tiến độ + tốc độ ở thanh
@@ -652,11 +655,13 @@ async function download(){
     // như treo tới lúc xong. Mở ở tab mới: tải được thì trình duyệt tự đóng tab, Worker báo lỗi thì lỗi
     // hiện ở tab đó và trang này không mất gì. Phải chạy trước mọi await để còn quyền mở tab từ cú bấm.
     const a=document.createElement('a');
-    a.href=VIDEO_PROXY+'?url='+encodeURIComponent(u)+(document.getElementById('fbhd').checked ? '&q=hd' : '');
+    a.href=VIDEO_PROXY+'?url='+encodeURIComponent(u)+(document.getElementById('fbhd').checked ? '&q=hd' : '')
+      +(name ? '&name='+encodeURIComponent(name) : '');
     a.target='_blank'; a.rel='noopener'; a.click();
     say('Đã chuyển cho trình duyệt tải — xem tiến độ ở thanh tải xuống. Nếu mở ra tab báo lỗi thì đọc lỗi ở tab đó.','note',dlOut);
     return;
   }
+  if(p==='gmaps') return gmapsVideo(u);  // không Worker: tải thẳng, tên file do Google đặt
   if(p==='facebook'){
     fbHelp.open=true;
     say('Facebook không cho trang khác lấy video. Mở link rồi bấm nút "⬇ Tải video FB" trên thanh dấu trang (xem hướng dẫn bên dưới).','note',dlOut);
@@ -667,6 +672,7 @@ async function download(){
   let v;
   try{ v=await tiktok(u); }
   catch(e){ say('Không lấy được video: '+e.message,'bad',dlOut); return; }
+  if(name) v.name=/\.mp4$/i.test(name) ? name : name+'.mp4';  // a[download] tự lọc ký tự cấm
   say('đang tải '+v.name+'…','note',dlOut);
   if(await saveUrl(v.url,v.name)) say('Đã tải: '+v.name+(v.title ? ' — '+v.title : ''),'note',dlOut);
   else { say('Không tải thẳng được. Mở video rồi chuột phải → Lưu video:','bad',dlOut); addLink('Mở video ↗',v.url); }
