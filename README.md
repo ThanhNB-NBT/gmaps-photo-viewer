@@ -59,8 +59,12 @@ Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải
 - **TikTok** (`vt.tiktok.com/…`, `www.tiktok.com/@…/video/…`): tải thẳng bản không logo nén H.264 (bản HD của TikTok thường là H.265 — nhiều máy phát ra màn đen chỉ còn tiếng), tên file
   `tiktok_<tác giả>_<id>.mp4`. Trang gửi link cho [tikwm.com](https://www.tikwm.com) để lấy link video
   (dịch vụ ngoài duy nhất của phần này, giới hạn ~1 lượt/giây). Bài slideshow ảnh thì báo không hỗ trợ.
-  Có Worker (mục dưới) thì Worker đọc thẳng trang TikTok để lấy video, tikwm chỉ còn làm dự phòng — bản
-  free của tikwm giới hạn 10.000 lượt/ngày *theo IP*, mà IP Cloudflare dùng chung nên hay hết lượt.
+  Có Worker (mục dưới) thì trang vẫn tự hỏi tikwm bằng IP máy mình trước (hạn mức riêng của máy, không chung
+  với IP Cloudflare) rồi đưa link CDN cho Worker chuyển về. tikwm lỗi thì đưa link gốc cho
+  Worker: Worker đọc thẳng trang TikTok để lấy video (trang này chỉ trả dữ liệu cho IP
+  Cloudflare khoảng một nửa số lần nên thử lại 3 lần), hỏng nữa thì dự phòng [snaptikpro.net](https://snaptikpro.net),
+  cuối cùng mới tới tikwm — bản free của tikwm giới hạn 10.000 lượt/ngày *theo IP*, mà IP Cloudflare dùng
+  chung nên hay hết lượt.
 - **Facebook** (`facebook.com/reel/…`, `/share/r/…`, `/share/v/…`, `fb.watch/…`): cũng tải qua Worker
   (mục dưới). Facebook trả trang **không có video** cho mọi IP Cloudflare (09/2026), nên Worker nhờ
   [`fbrelay.py`](fbrelay.py) trên một máy mạng nhà tải trang HTML, bóc link mp4, rồi tự kéo video từ CDN của FB.

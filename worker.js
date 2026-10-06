@@ -41,9 +41,32 @@ async function tikwm(link) {
   return { url: u, name: 'tiktok_' + ((d.author && d.author.unique_id) || '') + '_' + d.id + '.mp4' };
 }
 
+// snaptikpro.net: trả HTML có link CDN TikTok trực tiếp (H.264, tải không cần cookie). Lấy nút "Download MP4"
+// đầu tiên trỏ thẳng tiktokcdn; không có thì nút MP4 thường (proxy snapcdn). Bỏ "MP4 HD" (bản gốc, có thể H.265).
+// ponytail: cào HTML của site ngoài; họ đổi giao diện thì regex hỏng -> rơi xuống tikwm.
+async function snaptik(link) {
+  const j = await fetch('https://snaptikpro.net/api/ajaxSearch', { method: 'POST',
+    headers: { 'User-Agent': UA, 'X-Requested-With': 'XMLHttpRequest', 'Origin': 'https://snaptikpro.net',
+      'Referer': 'https://snaptikpro.net/en', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ q: link, cursor: '0', page: '0', lang: 'en' }) }).then(r => r.json()).catch(() => null);
+  if (!j || j.status !== 'ok') throw new Error((j && j.mess) || 'snaptikpro không trả lời');
+  const a = [...j.data.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+    .map(m => ({ u: m[1].replace(/&amp;/g, '&'), t: m[2].replace(/<[^>]+>/g, '') }))
+    .filter(x => /MP4/.test(x.t) && !/HD/.test(x.t));
+  const v = a.find(x => /tiktokcdn|tokcdn/.test(x.u)) || a[0];
+  if (!v) throw new Error('snaptikpro không có link MP4 (bài ảnh?)');
+  // snaptikpro không trả id/tác giả: lấy từ link dài; link rút gọn (vt.tiktok.com) thì đặt theo giờ.
+  const m = link.match(/@([\w.-]+)\/video\/(\d+)/);
+  return { url: v.u, name: 'tiktok_' + (m ? m[1] + '_' + m[2] : Date.now()) + '.mp4' };
+}
+
+// Trang TikTok trả cho IP Cloudflare lúc có lúc không (10/2026 đo ~50% thiếu dữ liệu video) -> thử lại 3 lần
+// trước khi dùng dịch vụ ngoài. Dự phòng: snaptikpro (chưa thấy giới hạn), rồi tikwm (10.000 lượt/ngày/IP).
 async function tiktok(link) {
-  try { return await tiktokPage(link); }
-  catch (e) { return tikwm(link).catch(e2 => { throw new Error(e.message + ' (dự phòng tikwm: ' + e2.message + ')'); }); }
+  const err = [];
+  for (let i = 0; i < 3; i++) { try { return await tiktokPage(link); } catch (e) { err[0] = e.message; } }
+  for (const f of [snaptik, tikwm]) { try { return await f(link); } catch (e) { err.push(f.name + ': ' + e.message); } }
+  throw new Error(err.join(' | '));
 }
 
 // Trang video/reel FB công khai, tải KHÔNG đăng nhập với UA trình duyệt, có "browser_native_hd_url"
@@ -96,6 +119,10 @@ async function gmaps(link) {
   return { url: b + '=dv', name: 'gmaps_' + b.slice(-12) + '.mp4' };
 }
 
+// Link CDN TikTok mà trang đã tự hỏi tikwm bằng IP máy người dùng (mỗi máy có hạn mức riêng). Worker chỉ
+// chuyển video về để có tên file + thanh tiến độ. Chỉ nhận đúng CDN TikTok nên vẫn không thành proxy mở.
+async function tiktokCdn(link) { return { url: link, name: 'tiktok_' + Date.now() + '.mp4' }; }
+
 // Tên file người dùng tự điền: bỏ ký tự Windows cấm, thêm .mp4 nếu thiếu. Rỗng -> tên mặc định.
 function fileName(s, def) {
   s = (s || '').replace(/[\x00-\x1f\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').replace(/^[.\s]+|[.\s]+$/g, '').slice(0, 150);
@@ -114,7 +141,8 @@ export default {
     try { host = new URL(link).hostname; } catch (e) {}
     const get = /(^|\.)tiktok\.com$/.test(host) ? tiktok
               : /(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(host) ? facebook
-              : /^lh\d\.googleusercontent\.com$/.test(host) ? gmaps : null;
+              : /^lh\d\.googleusercontent\.com$/.test(host) ? gmaps
+              : /(^|\.)(tiktokcdn(-[a-z]+)?\.com|tokcdn\.com)$/.test(host) ? tiktokCdn : null;
     if (!get) return fail('Chỉ nhận link TikTok, Facebook hoặc video Google Maps (lh3)', 400);
 
     const q = new URL(req.url).searchParams;

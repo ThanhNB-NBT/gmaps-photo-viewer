@@ -603,7 +603,7 @@ const addLink=(text,href)=>{ const a=document.createElement('a'); a.textContent=
 // TikTok tự gọi thẳng được: cả tikwm.com lẫn CDN video đều trả Access-Control-Allow-Origin: *.
 // ponytail: phụ thuộc 1 dịch vụ ngoài (tikwm, free ~1 lượt/giây); nó chết thì thay endpoint ở đây.
 async function tiktok(u){
-  const j=await fetch('https://www.tikwm.com/api/?hd=1&url='+encodeURIComponent(u)).then(r=>r.json());
+  const j=await fetch('https://www.tikwm.com/api/?hd=1&url='+encodeURIComponent(u),{signal:AbortSignal.timeout(8000)}).then(r=>r.json());
   if(!j || j.code!==0) throw new Error((j && j.msg) || 'tikwm trả lỗi');
   const d=j.data;
   if(d.images && d.images.length) throw new Error('bài này là ảnh (slideshow), không phải video');
@@ -654,10 +654,23 @@ async function download(){
     // tải xuống và ghi ra đĩa ngay khi dữ liệu về, thay vì kéo hết vào RAM rồi mới lưu — trước đây nhìn
     // như treo tới lúc xong. Mở ở tab mới: tải được thì trình duyệt tự đóng tab, Worker báo lỗi thì lỗi
     // hiện ở tab đó và trang này không mất gì. Phải chạy trước mọi await để còn quyền mở tab từ cú bấm.
-    const a=document.createElement('a');
-    a.href=VIDEO_PROXY+'?url='+encodeURIComponent(u)+(document.getElementById('fbhd').checked ? '&q=hd' : '')
-      +(name ? '&name='+encodeURIComponent(name) : '');
-    a.target='_blank'; a.rel='noopener'; a.click();
+    const go=(src,n)=>VIDEO_PROXY+'?url='+encodeURIComponent(src)+(document.getElementById('fbhd').checked ? '&q=hd' : '')
+      +(n ? '&name='+encodeURIComponent(n) : '');
+    // TikTok: tự hỏi tikwm bằng IP máy mình trước — hạn mức 10.000 lượt/ngày của riêng máy này, không chung
+    // với IP Cloudflare — rồi đưa link CDN cho Worker chuyển về. tikwm lỗi/chậm thì đưa link gốc, Worker tự lo.
+    // Tab phải mở NGAY trong cú bấm (sau await trình duyệt chặn popup), lấy được link rồi mới trỏ tab đi.
+    const w=p==='tiktok' && window.open('','_blank');
+    if(w){
+      w.opener=null;
+      say('đang lấy link video…','note',dlOut);
+      let src=u, n=name;
+      try{ const v=await tiktok(u); if(/(^|\.)(tiktokcdn(-[a-z]+)?\.com|tokcdn\.com)$/.test(new URL(v.url).hostname)){ src=v.url; n=name||v.name; } }
+      catch(e){}
+      w.location=go(src,n);
+    } else {
+      const a=document.createElement('a'); a.href=go(u,name);
+      a.target='_blank'; a.rel='noopener'; a.click();
+    }
     say('Đã chuyển cho trình duyệt tải — xem tiến độ ở thanh tải xuống. Nếu mở ra tab báo lỗi thì đọc lỗi ở tab đó.','note',dlOut);
     return;
   }
