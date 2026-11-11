@@ -52,7 +52,7 @@ Dùng API công khai của [gis.vn](https://gis.vn/api) (`vn2000.vn/api/location
 
 Đây là phần **duy nhất** cần mạng. Phần xem ảnh chạy hoàn toàn cục bộ.
 
-## Tải video TikTok / Facebook / Google Maps
+## Tải video TikTok / Facebook / YouTube / Instagram / Google Maps
 
 Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải từ link* ở tab **Video**, nhấn **Tải** (hoặc Enter).
 
@@ -72,6 +72,16 @@ Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải
   AV1 hoặc VP9, máy thiếu codec phát ra màn đen. Tích ô *lấy bản nét nhất* để lấy HD 1080p bất kể codec.
   Dự phòng (video riêng tư, chỉ bạn bè, hoặc máy nhà tắt): **bookmarklet** — kéo nút *⬇ Tải video FB* lên
   thanh dấu trang (Ctrl+Shift+B để hiện thanh), mở video trên Facebook rồi bấm nút đó.
+
+- **YouTube** (`youtube.com/watch?v=…`, `/shorts/…`, `/live/…`, `youtu.be/…`, `m.`/`music.youtube.com`): link
+  có mốc thời gian (`?t=90`, `&t=1m30s`, `#t=…`) hay nằm trong danh sách phát (`&list=…`) vẫn nhận — chỉ lấy id,
+  tải **nguyên** video. Bản nét nhất tới 1080p nén H.264 + tiếng AAC (trên 1080p YouTube chỉ có VP9/AV1, nhiều
+  máy phát ra màn đen), tên file là tiêu đề video. Chỉ tải được qua Worker + máy nhà (mục dưới): YouTube chặn
+  IP Cloudflare và link video khoá theo IP máy lấy link, nên máy nhà tải rồi chuyển về. Vừa tải vừa gửi nên
+  thanh tải xuống không biết trước dung lượng; tốc độ ~1,4 MB/s (giới hạn ở mạng lên của máy nhà).
+- **Instagram** (`instagram.com/reel/…`, `/p/…`, `/tv/…`, link Chia sẻ): reel và bài video **công khai**, đi cùng
+  đường với YouTube (yt-dlp trên máy nhà, route `/ig?url=…`), tên file `instagram_<mã bài>.mp4`. Bài nhiều
+  video chỉ lấy video đầu. Story và tài khoản riêng tư cần đăng nhập nên không tải được.
 
 - **Video Google Maps**: dán link Maps đang mở video (hoặc link lh3 của nó) vào cùng ô *Tải từ link*.
   Thêm `=dv` vào id lh3 thì Google chuyển sang file **mp4 gốc**. Có Worker thì tải qua Worker (để đặt được tên
@@ -99,7 +109,11 @@ Worker chỉ nhận link TikTok/Facebook, nên người khác không mượn nó
 ngoài bằng Cloudflare Tunnel (bản hiện tại: `fbx.120203.xyz` → `localhost:8787`, service systemd `fbrelay`).
 Khoá chung: `FB_RELAY_KEY` trong `~/fbrelay/fbrelay.env` trên máy nhà = secret cùng tên của Worker
 (`npx wrangler secret put FB_RELAY_KEY --name gmaps-tiktok`). Relay chỉ trả trang HTML của link Facebook cho
-ai có khoá; video không đi qua máy nhà.
+ai có khoá; video Facebook không đi qua máy nhà.
+
+**YouTube** cũng chạy trên relay đó (route `/yt?id=…`), cần thêm `yt-dlp`, `deno` (yt-dlp dùng để giải chữ ký
+YouTube) và `ffmpeg`/`ffprobe` bản chạy độc lập trong `~/fbrelay/bin/` — không cần sudo. Cập nhật yt-dlp khi
+YouTube/Instagram đổi cách chặn: `~/fbrelay/bin/yt-dlp -U`.
 
 Không có gì được lưu lại: link chỉ nằm trong ô nhập, file tải về đi thẳng vào máy bạn.
 

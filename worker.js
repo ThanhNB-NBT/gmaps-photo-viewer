@@ -1,6 +1,6 @@
 // Cloudflare Worker: kéo video TikTok / Facebook hộ trang GMaps Photo Viewer — cho mạng chặn CDN
 // (VPN công ty...) và vì Facebook không cho trang khác đọc video. Không lưu gì: video chảy thẳng qua.
-// Chỉ nhận link TikTok/Facebook và chỉ tải đúng link video bóc ra được, nên không thành proxy mở.
+// Chỉ nhận link TikTok/Facebook/YouTube/Instagram và chỉ tải đúng link video bóc ra được, nên không thành proxy mở.
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Disposition' };
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 const fail = (msg, status) => new Response(msg, { status, headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -109,6 +109,31 @@ async function facebook(link, hd, env) {
   return { url: v.url, name: 'facebook_' + (id || Date.now()) + '_' + v.q + '.mp4' };
 }
 
+// YouTube chặn IP Cloudflare và link googlevideo khoá theo IP máy lấy link -> cả việc tải lẫn ghép hình+tiếng
+// chạy bằng yt-dlp trên máy nhà (route /yt của fbrelay.py), Worker chỉ chuyển dòng video về.
+// Nhận: /watch?v=, /shorts/, /live/, /embed/, /v/, youtu.be/ — kèm ?t= / &t= / #t= / &list= đều bỏ, chỉ lấy id
+// và tải nguyên video.
+const ytId = link => {
+  const u = new URL(link);
+  const s = /(^|\.)youtu\.be$/.test(u.hostname) ? u.pathname.slice(1)
+    : u.searchParams.get('v') || (u.pathname.match(/^\/(?:shorts|live|embed|v)\/([^/]+)/) || [])[1];
+  return /^[\w-]{11}$/.test(s || '') ? s : null;
+};
+async function youtube(link, hd, env) {
+  const id = ytId(link);
+  if (!id) throw new Error('Không thấy id video trong link YouTube (cần dạng /watch?v=…, /shorts/…, youtu.be/…)');
+  return { url: FB_RELAY + '/yt?id=' + id, name: 'youtube_' + id + '.mp4', headers: { 'X-Key': env.FB_RELAY_KEY || '' }, relay: 'YouTube' };
+}
+
+// Instagram (reel / bài video công khai): cũng yt-dlp trên máy nhà (route /ig) — Instagram đòi đăng nhập với IP
+// máy chủ, và hình/tiếng tách luồng phải ghép như YouTube. Đưa nguyên link (kể cả dạng /share/…) cho yt-dlp tự
+// lần; mã bài chỉ để đặt tên file. Story và tài khoản riêng tư cần đăng nhập -> không tải được.
+const igCode = link => (new URL(link).pathname.match(/\/(?:p|reels?|tv)\/([\w-]+)/) || [])[1];
+async function instagram(link, hd, env) {
+  return { url: FB_RELAY + '/ig?url=' + encodeURIComponent(link), name: 'instagram_' + (igCode(link) || Date.now()) + '.mp4',
+    headers: { 'X-Key': env.FB_RELAY_KEY || '' }, relay: 'Instagram' };
+}
+
 // Video người dùng đăng lên Google Maps: id lh3 + "=dv" -> lh3 chuyển (302) sang mp4 GỐC trên
 // drum.usercontent.google.com. Id của ảnh thì =dv trả 500 -> hỏi trước bằng redirect:'manual' để báo lỗi rõ.
 // Đi qua Worker (thay vì trình duyệt tải thẳng) chỉ để đặt được tên file: a[download] bị bỏ qua khi khác origin.
@@ -132,7 +157,7 @@ function fileName(s, def) {
 const disposition = n => `attachment; filename="${n.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''`
   + encodeURIComponent(n).replace(/['()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 
-export { fbPick, fileName, disposition };  // cho self-check chạy bằng Node
+export { fbPick, ytId, igCode, fileName, disposition };  // cho self-check chạy bằng Node
 
 export default {
   async fetch(req, env) {
@@ -141,16 +166,21 @@ export default {
     try { host = new URL(link).hostname; } catch (e) {}
     const get = /(^|\.)tiktok\.com$/.test(host) ? tiktok
               : /(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(host) ? facebook
+              : /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/.test(host) ? youtube
+              : /(^|\.)(instagram\.com|instagr\.am)$/.test(host) ? instagram
               : /^lh\d\.googleusercontent\.com$/.test(host) ? gmaps
               : /(^|\.)(tiktokcdn(-[a-z]+)?\.com|tokcdn\.com)$/.test(host) ? tiktokCdn : null;
-    if (!get) return fail('Chỉ nhận link TikTok, Facebook hoặc video Google Maps (lh3)', 400);
+    if (!get) return fail('Chỉ nhận link TikTok, Facebook, YouTube, Instagram hoặc video Google Maps (lh3)', 400);
 
     const q = new URL(req.url).searchParams;
     let v;
     try { v = await get(link, q.get('q') === 'hd', env); } catch (e) { return fail(e.message, 502); }
     const r = await fetch(v.url, { headers: { 'User-Agent': UA, ...v.headers } });
-    if (!r.ok) return fail('Máy chủ video trả ' + r.status, 502);
-    const h = { ...CORS, 'Content-Type': 'video/mp4', 'Content-Disposition': disposition(fileName(q.get('name'), v.name)) };
+    if (!r.ok) return fail(v.relay && /text\/plain/.test(r.headers.get('Content-Type')) ? v.relay + ': ' + await r.text()
+      : 'Máy chủ video trả ' + r.status + (v.relay ? ' — máy nhà tắt hoặc mất mạng?' : ''), 502);
+    // Relay YouTube gửi kèm tiêu đề video (X-Name) để làm tên file mặc định.
+    const def = r.headers.get('X-Name') ? fileName(decodeURIComponent(r.headers.get('X-Name')), v.name) : v.name;
+    const h = { ...CORS, 'Content-Type': 'video/mp4', 'Content-Disposition': disposition(fileName(q.get('name'), def)) };
     if (r.headers.get('Content-Length')) h['Content-Length'] = r.headers.get('Content-Length');
     return new Response(r.body, { headers: h });
   },

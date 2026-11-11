@@ -4,77 +4,83 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GMaps Photo Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
 <style>
-  /* Sáng là mặc định; máy đang để tối thì tự tối, trừ khi người dùng đã chọn tay. */
+  /* Màu lấy từ tấm bản đồ in: đất, giấy, mực, nước (hành động chính), đường quốc lộ (đang chọn), ghim (xoá/lỗi).
+     Sáng là mặc định; máy đang để tối thì tự tối, trừ khi người dùng đã chọn tay. */
   :root{
     color-scheme:light;
-    --bg:#f5f6f8; --panel:#fff; --sunk:#fafbfc; --img:#eceef1;
-    --fg:#171a1f; --mut:#6b7280; --line:#e3e6ea; --line2:#d3d8df;
-    --acc:#2563eb; --acc-fg:#fff; --bad:#c0392b;
-    --sh:0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
-    --sh-h:0 4px 12px rgba(16,24,40,.10);
+    --land:#eef1ec; --paper:#fbfcfa; --sunk:#f3f5f1; --img:#e2e7e0;
+    --ink:#1d2a26; --mut:#5c6964; --line:#d7ddd5; --line2:#bfc9be;
+    --water:#0e6f78; --water-fg:#fff; --wash:#e1eeec;
+    --road:#f2b83b; --road-fg:#1d2a26; --pin:#c8372d;
+    --ui:'Be Vietnam Pro',system-ui,'Segoe UI',sans-serif;
   }
   @media (prefers-color-scheme:dark){
     :root:not([data-theme=light]){
       color-scheme:dark;
-      --bg:#111317; --panel:#181b21; --sunk:#0e1013; --img:#0a0b0d;
-      --fg:#e6e9ee; --mut:#939aa8; --line:#272c34; --line2:#333a45;
-      --acc:#6ba1ff; --acc-fg:#0b1220; --bad:#ff8080;
-      --sh:0 1px 2px rgba(0,0,0,.4); --sh-h:0 4px 14px rgba(0,0,0,.5);
+      --land:#141e21; --paper:#1b282c; --sunk:#111a1d; --img:#0d1416;
+      --ink:#e4ece9; --mut:#8fa09b; --line:#2a3a3f; --line2:#3a4d53;
+      --water:#5cc6cf; --water-fg:#0c1a1d; --wash:#1a3034;
+      --road:#e9b44c; --road-fg:#1d2a26; --pin:#ff7b6e;
     }
   }
   :root[data-theme=dark]{
     color-scheme:dark;
-    --bg:#111317; --panel:#181b21; --sunk:#0e1013; --img:#0a0b0d;
-    --fg:#e6e9ee; --mut:#939aa8; --line:#272c34; --line2:#333a45;
-    --acc:#6ba1ff; --acc-fg:#0b1220; --bad:#ff8080;
-    --sh:0 1px 2px rgba(0,0,0,.4); --sh-h:0 4px 14px rgba(0,0,0,.5);
+    --land:#141e21; --paper:#1b282c; --sunk:#111a1d; --img:#0d1416;
+    --ink:#e4ece9; --mut:#8fa09b; --line:#2a3a3f; --line2:#3a4d53;
+    --water:#5cc6cf; --water-fg:#0c1a1d; --wash:#1a3034;
+    --road:#e9b44c; --road-fg:#1d2a26; --pin:#ff7b6e;
   }
 
   *{box-sizing:border-box}
-  body{margin:0;padding:28px 20px 60px;background:var(--bg);color:var(--fg);
-    font:15px/1.55 system-ui,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{width:100%}
-
+  body{margin:0;background:var(--land);color:var(--ink);
+    font:15px/1.55 var(--ui);-webkit-font-smoothing:antialiased}
+  .wrap{padding:22px 24px 64px}
   [hidden]{display:none!important}
+
   /* Header dính trên cùng: đổi tab không phải cuộn ngược lên. */
-  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;
-    margin:-28px -20px 16px;padding:12px 20px;background:var(--bg);border-bottom:1px solid var(--line)}
-  h1{font-size:18px;font-weight:650;letter-spacing:-.01em;margin:0;white-space:nowrap}
-  .tabs{display:flex;gap:3px;padding:3px;background:var(--sunk);border:1px solid var(--line);border-radius:10px}
-  .tabs a{padding:5px 14px;border-radius:7px;color:var(--mut);text-decoration:none;
-    font-size:14px;font-weight:550;white-space:nowrap;transition:color .15s,background .15s}
-  .tabs a:hover{color:var(--fg)}
-  .tabs a[aria-current]{background:var(--panel);color:var(--fg);box-shadow:var(--sh)}
-  .tabs a:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:10px 22px;
+    padding:11px 24px;background:var(--land);border-bottom:1px solid var(--line)}
+  h1{display:flex;align-items:center;gap:8px;margin:0;font-size:17px;font-weight:700;letter-spacing:-.015em;white-space:nowrap}
+  h1 svg{flex:none;width:19px;height:19px;fill:var(--pin)}
+  .tabs{display:flex;gap:2px;padding:3px;background:var(--sunk);border:1px solid var(--line);border-radius:999px}
+  .tabs a{padding:5px 16px;border-radius:999px;color:var(--mut);text-decoration:none;
+    font-size:14px;font-weight:500;white-space:nowrap;transition:color .15s,background .15s}
+  .tabs a:hover{color:var(--ink)}
+  .tabs a[aria-current]{background:var(--ink);color:var(--land)}
   /* Máy hẹp: tên + nút giao diện một hàng, tab chiếm trọn hàng dưới cho dễ bấm. */
   @media (max-width:560px){
-    body{padding:20px 16px 48px}
-    header{margin:-20px -16px 14px;padding:10px 16px}
+    .wrap{padding:16px 16px 48px}
+    header{padding:10px 16px}
     .tabs{order:3;flex-basis:100%}
-    .tabs a{flex:1;text-align:center;padding:7px 8px}
+    .tabs a{flex:1;text-align:center;padding:8px}
   }
-  .sub{color:var(--mut);font-size:13px;margin:0 0 12px;max-width:80ch}
-  .sub code{background:var(--sunk);border:1px solid var(--line);border-radius:4px;
+
+  .sub{color:var(--mut);font-size:14px;margin:0 0 14px;max-width:76ch}
+  .sub code{background:var(--sunk);border:1px solid var(--line);border-radius:5px;
     padding:1px 5px;font:12px ui-monospace,Consolas,monospace}
 
-  button{font:14px system-ui,sans-serif;border-radius:8px;cursor:pointer;
-    border:1px solid var(--line2);background:var(--panel);color:var(--fg);
-    padding:8px 14px;transition:border-color .15s,background .15s,box-shadow .15s}
-  button:hover{border-color:var(--acc)}
-  button:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-  #theme{margin-left:auto;flex:none;padding:8px 12px;box-shadow:var(--sh);white-space:nowrap}
-  #go{background:var(--acc);color:var(--acc-fg);border-color:transparent;font-weight:550}
-  #go:hover{filter:brightness(1.08)}
+  button{font:500 14px/1.3 var(--ui);border-radius:9px;cursor:pointer;
+    border:1px solid var(--line2);background:var(--paper);color:var(--ink);
+    padding:9px 15px;transition:border-color .15s,background .15s,filter .15s}
+  button:hover{border-color:var(--ink)}
+  .pri{background:var(--water);color:var(--water-fg);border-color:transparent;font-weight:600}
+  .pri:hover{filter:brightness(1.1);border-color:transparent}
+  :is(button,select,a,input[type=checkbox],summary):focus-visible{outline:2px solid var(--water);outline-offset:2px}
+  #theme{margin-left:auto;flex:none;padding:7px 12px;background:transparent;white-space:nowrap}
 
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    padding:12px;box-shadow:var(--sh)}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .ttl{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0 0 11px}
+
   /* Số dòng nằm ngoài textarea nên bôi đen chép link không dính số.
      Cả hai phải cùng font + line-height, và textarea để wrap=off, nếu không số lệch hàng. */
   /* padding hai bên của .ed chừa chỗ cho hai cột, để textarea KHÔNG nằm dưới chúng:
      padding-left của chính textarea sẽ cuộn theo chữ, làm chữ chui xuống dưới số. */
-  .ed{position:relative;background:var(--sunk);padding:0 30px 0 38px;
-    border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .ed{position:relative;background:var(--sunk);padding:0 30px 0 40px;
+    border:1px solid var(--line);border-radius:9px;overflow:hidden}
   /* Cột xoá bên phải nằm NGOÀI textarea (trong padding của .ed) nên không đè thanh cuộn. */
   .rn{position:absolute;right:0;top:0;bottom:0;width:30px;padding:11px 0;overflow:hidden}
   /* > div: nếu để ".rn div" thì nó khớp cả #rnIn, biến hộp bọc thành flex ngang. */
@@ -83,108 +89,128 @@
   .x{width:24px;height:24px;padding:0;border:0;border-radius:6px;background:transparent;
     color:var(--mut);font:14px/1 system-ui,sans-serif;cursor:pointer;
     display:flex;align-items:center;justify-content:center}
-  .x:hover{background:var(--bad);color:#fff}
+  .x:hover{background:var(--pin);color:#fff}
   #rnIn > div .x{width:100%;height:100%;border-radius:4px}
-  .ed:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+  .ed:focus-within{outline:2px solid var(--water);outline-offset:1px}
   /* Tuyệt đối, nếu không 50 số sẽ kéo khung cao hơn textarea. */
-  .ln{position:absolute;left:0;top:0;bottom:0;width:38px;padding:11px 8px 11px 0;
+  .ln{position:absolute;left:0;top:0;bottom:0;width:40px;padding:11px 0;
     overflow:hidden;text-align:right;color:var(--mut);user-select:none;
     font:12.5px/1.6 ui-monospace,Consolas,monospace}
-  .ln div.on{color:var(--acc);font-weight:700}
-  textarea{display:block;width:100%;height:132px;padding:11px 12px 11px 4px;
-    background:transparent;color:var(--fg);border:0;border-radius:0;resize:vertical;outline:0;
+  .ln div{padding-right:8px}
+  .ln div.on{background:var(--road);color:var(--road-fg);font-weight:700}
+  textarea{display:block;width:100%;height:132px;padding:11px 12px 11px 6px;
+    background:transparent;color:var(--ink);border:0;border-radius:0;resize:vertical;outline:0;
     font:12.5px/1.6 ui-monospace,Consolas,monospace}
-  textarea::placeholder{color:var(--mut)}
+  textarea::placeholder,input[type=text]::placeholder{color:var(--mut)}
 
-  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
   .sz{display:flex;align-items:center;gap:7px;color:var(--mut);font-size:13px}
-  select{background:var(--panel);color:var(--fg);border:1px solid var(--line2);
-    border-radius:8px;padding:7px 8px;font:13px system-ui,sans-serif}
+  .bar .sz{margin-left:6px}
+  select{background:var(--paper);color:var(--ink);border:1px solid var(--line2);
+    border-radius:9px;padding:8px;font:13px var(--ui)}
   .count{margin-left:auto;color:var(--mut);font-size:13px;font-variant-numeric:tabular-nums}
 
-  .panels{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+  .panels{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
   /* Ô dán link được phần dư gấp đôi; khi rớt hàng thì ô tra địa chỉ trải hết, không chừa khoảng trống. */
   .panels>.main{flex:2 1 460px}
-  .panels>.geo{flex:1 1 340px}
-  .panels>.dlp{flex:1 1 440px}
-  .panels>.vid{flex:1 1 300px;align-self:stretch;display:flex;flex-direction:column}
-  .drop{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
-    min-height:96px;padding:14px;border:1px dashed var(--line2);border-radius:8px;
-    color:var(--mut);font-size:13px;text-align:center}
-  .ttl{font-size:13px;font-weight:600;margin:0 0 9px}
+  .panels>.geo{flex:1 1 340px;background:var(--wash);border-color:transparent}
+  .panels>.dlp{flex:1.4 1 440px}
+  .panels>.vid{flex:1 1 300px;align-self:stretch;display:flex;flex-direction:column;
+    background:transparent;border-style:dashed;border-color:var(--line2)}
+  .drop{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    min-height:110px;color:var(--mut);font-size:13px;text-align:center}
+  .drop span{max-width:34ch}
   /* Video chỉ sống trong tab: blob URL, không upload, không lưu. */
-  .vid.drag{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
-  .geo-out a{color:var(--acc)}
-  .hdopt{margin-top:8px;align-items:flex-start;font-size:12.5px;line-height:1.45}
-  .hdopt input{margin:2px 0 0;flex:none}
-  .bm{display:inline-block;padding:1px 9px;border:1px solid var(--line2);border-radius:999px;
-    color:var(--acc);text-decoration:none;cursor:grab;white-space:nowrap}
-  .vids{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
-  .vids:not(:empty){margin-top:16px}
-  .vids figure{margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .vids video{display:block;width:100%;max-height:60vh;background:#000}
-  .vids figcaption{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;
-    font-size:12px;color:var(--mut)}
-  .vids figcaption span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .row{display:flex;gap:8px}
-  input[type=text]{flex:1;min-width:0;padding:8px 10px;background:var(--sunk);color:var(--fg);
-    border:1px solid var(--line);border-radius:8px;font:12.5px ui-monospace,Consolas,monospace}
-  input[type=text]::placeholder{color:var(--mut)}
-  input[type=text]:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-  #lookup{flex:none}
+  .vid.drag{border-color:var(--water);border-style:solid;background:var(--wash)}
 
-  .geo-out{margin-top:10px;font-size:13px;min-height:22px}
-  .geo-out .lv{display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--line);cursor:copy}
-  .geo-out .lv:first-child{border-top:0}
-  .geo-out .lv b{flex:none;width:52px;color:var(--mut);font-weight:500;font-size:12px}
-  .geo-out .lv span{flex:1;min-width:0}
-  .geo-out .lv:hover span{color:var(--acc)}
-  .geo-out .note{color:var(--mut);font-size:11.5px;padding-top:6px;line-height:1.45}
-  .geo-out .bad{color:var(--bad)}
-  .tok{margin-top:10px;font-size:12px;color:var(--mut)}
-  .tok summary{cursor:pointer}
-  .tok .row{margin-top:7px}
+  .row{display:flex;gap:8px}
+  input[type=text]{flex:1;min-width:0;padding:9px 12px;background:var(--sunk);color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;font:14px var(--ui);font-variant-numeric:tabular-nums}
+  .geo input[type=text]{background:var(--paper)}
+  input[type=text]:focus-visible{outline:2px solid var(--water);outline-offset:1px}
+  #lookup,#dlgo{flex:none}
   .dlp .row+.row{margin-top:8px}
-  .tok input{flex:0 1 160px}
-  .tok p{margin:6px 0 0;line-height:1.45}
+  #dl{padding:12px 14px;font-size:15px}
+  #dlgo{padding-inline:22px}
+
+  /* Nhãn nguồn: cái nào khớp link vừa dán thì sáng lên. Chấm màu = màu nhận diện của nguồn. */
+  .src{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:10px 0 0;padding:0}
+  .src li{display:flex;align-items:center;gap:6px;padding:3px 11px 3px 9px;border:1px solid var(--line);
+    border-radius:999px;font-size:12.5px;color:var(--mut);transition:background .15s,color .15s,border-color .15s}
+  .src li::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--c)}
+  .src li.on{background:var(--ink);border-color:var(--ink);color:var(--land);font-weight:600}
+  .hint{margin:8px 0 12px;min-height:20px;font-size:13px;color:var(--mut)}
+  .hdopt{margin-top:10px;align-items:flex-start;line-height:1.45}
+  .hdopt input{margin:3px 0 0;flex:none;accent-color:var(--water)}
+  .bm{display:inline-block;padding:1px 9px;border:1px solid var(--line2);border-radius:999px;
+    color:var(--water);text-decoration:none;cursor:grab;white-space:nowrap}
+
+  .geo-out{margin-top:10px;font-size:13.5px;min-height:22px}
+  .geo-out a{color:var(--water)}
+  .geo-out .lv{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line2);cursor:copy}
+  .geo-out .lv:first-child{border-top:0}
+  .geo-out .lv b{flex:none;width:48px;color:var(--mut);font-weight:500;font-size:12.5px}
+  .geo-out .lv span{flex:1;min-width:0}
+  .geo-out .lv:hover span{color:var(--water)}
+  .geo-out .note{color:var(--mut);font-size:12.5px;padding-top:4px;line-height:1.45}
+  .geo-out .bad{color:var(--pin)}
+  .tok{margin-top:10px;font-size:12.5px;color:var(--mut)}
+  .tok summary{cursor:pointer;width:fit-content;border-radius:4px}
+  .tok .row{margin-top:8px}
+  .tok input{flex:0 1 180px;font-size:13px;padding:7px 10px}
+  .tok button{padding:7px 12px;font-size:13px}
+  .tok p{margin:8px 0 0;line-height:1.5;max-width:70ch}
+
+  .vids{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:14px}
+  .vids:not(:empty){margin-top:18px}
+  .vids figure{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .vids video{display:block;width:100%;max-height:60vh;background:#000}
+  .vids figcaption{display:flex;align-items:center;gap:6px;padding:5px 5px 5px 12px;font-size:12.5px;color:var(--mut)}
+  .vids figcaption span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-top:22px}
-  .empty{margin-top:22px;padding:44px 20px;text-align:center;color:var(--mut);font-size:13px;
-    border:1px dashed var(--line2);border-radius:12px}
+  /* Trạng thái trống = vùng chưa đo vẽ: đường đồng mức vẽ bằng mask để ăn theo màu sáng/tối. */
+  .empty{position:relative;overflow:hidden;margin-top:22px;padding:64px 20px;text-align:center;
+    color:var(--mut);font-size:14px;border:1px dashed var(--line2);border-radius:14px}
+  .empty::before{content:'';position:absolute;inset:0;background:var(--line2);opacity:.75;
+    -webkit-mask:var(--topo) center/cover no-repeat;mask:var(--topo) center/cover no-repeat;
+    --topo:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 240' preserveAspectRatio='xMidYMid slice' fill='none' stroke='black' stroke-width='1.1'%3E%3Cg transform='translate(170 150)'%3E%3Cellipse rx='34' ry='18' transform='rotate(-12)'/%3E%3Cellipse rx='72' ry='40' transform='rotate(-7)'/%3E%3Cellipse rx='114' ry='66' transform='rotate(-14)'/%3E%3Cellipse rx='160' ry='94' transform='rotate(-6)'/%3E%3Cellipse rx='210' ry='126' transform='rotate(-11)'/%3E%3Cellipse rx='264' ry='160' transform='rotate(-4)'/%3E%3C/g%3E%3Cg transform='translate(640 70)'%3E%3Cellipse rx='26' ry='15' transform='rotate(22)'/%3E%3Cellipse rx='60' ry='36' transform='rotate(15)'/%3E%3Cellipse rx='98' ry='60' transform='rotate(24)'/%3E%3Cellipse rx='140' ry='88' transform='rotate(13)'/%3E%3Cellipse rx='186' ry='118' transform='rotate(19)'/%3E%3Cellipse rx='236' ry='152' transform='rotate(10)'/%3E%3C/g%3E%3C/svg%3E")}
+  .empty span{position:relative;padding:4px 12px;background:var(--land);border-radius:999px}
 
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
-    box-shadow:var(--sh);transition:box-shadow .16s,border-color .16s,transform .16s}
-  .card:hover{box-shadow:var(--sh-h);border-color:var(--line2);transform:translateY(-2px)}
-  .card.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc),var(--sh-h)}
-  .no{position:absolute;top:7px;left:7px;z-index:1;background:rgba(0,0,0,.62);color:#fff;
-    min-width:20px;text-align:center;padding:1px 6px;border-radius:999px;
-    font:11px/1.6 ui-monospace,Consolas,monospace;pointer-events:none}
-  .card.on .no{background:var(--acc);color:var(--acc-fg);font-weight:700}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    transition:box-shadow .15s,border-color .15s}
+  .card.on{border-color:var(--road);box-shadow:0 0 0 3px var(--road)}
+  /* Số thứ tự là cái ghim bản đồ: giọt nước vẽ bằng ::before xoay 45°, số nằm trên nên không bị xoay. */
+  .no{position:absolute;top:8px;left:8px;z-index:1;width:26px;height:26px;display:grid;place-items:center;
+    color:#fff;font:700 11.5px/1 var(--ui);font-variant-numeric:tabular-nums;pointer-events:none}
+  .no::before{content:'';position:absolute;inset:0;z-index:-1;background:#1d2a26;
+    border:1.5px solid rgba(255,255,255,.85);border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
+  .card.on .no{color:var(--road-fg)}
+  .card.on .no::before{background:var(--road)}
   .box{position:relative;aspect-ratio:4/3;background:var(--img)}
   .box img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
   .st{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    color:var(--mut);font-size:12px;pointer-events:none}
+    color:var(--mut);font-size:12.5px;pointer-events:none}
   .st.load{animation:pulse 1.4s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.9}}
-  .st.bad{color:var(--bad)}
-  .st.dim{inset:auto 7px 7px auto;background:rgba(0,0,0,.62);color:#fff;
-    padding:2px 7px;border-radius:999px;font:11px ui-monospace,Consolas,monospace;
+  .st.bad{color:var(--pin)}
+  .st.dim{inset:auto 8px 8px auto;background:rgba(0,0,0,.62);color:#fff;
+    padding:2px 8px;border-radius:999px;font-size:11.5px;font-variant-numeric:tabular-nums;
     animation:none;opacity:0;transition:opacity .15s}
   .card:hover .st.dim{opacity:1}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
   .foot{display:flex;align-items:center;gap:2px;padding-right:7px;border-top:1px solid var(--line)}
-  .u{flex:1;min-width:0;padding:9px 4px 9px 11px;color:var(--mut);cursor:copy;
+  .u{flex:1;min-width:0;padding:9px 4px 9px 12px;color:var(--mut);cursor:copy;
     font:11px ui-monospace,Consolas,monospace;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s}
-  .u:hover{color:var(--fg)}
-  .u.ok{color:var(--acc)}
+  .u:hover{color:var(--ink)}
+  .u.ok{color:var(--water)}
 </style>
 </head>
 <body>
-<div class="wrap">
 <header>
-  <h1>GMaps Photo Viewer</h1>
+  <h1><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7.5 7.5 0 0 0-7.5 7.5c0 5.4 6.2 11.4 7 12.2a.7.7 0 0 0 1 0c.8-.8 7-6.8 7-12.2A7.5 7.5 0 0 0 12 2Zm0 10.3a2.8 2.8 0 1 1 0-5.6 2.8 2.8 0 0 1 0 5.6Z"/></svg>GMaps Photo Viewer</h1>
   <nav class="tabs" aria-label="Chức năng">
     <a href="#maps">Ảnh &amp; địa chỉ</a>
     <a href="#video">Video</a>
@@ -192,21 +218,22 @@
   <button id="theme" title="Đổi giao diện"></button>
 </header>
 
+<main class="wrap">
 <section data-tab="maps">
-<p class="sub">Dán link Google Maps, CSS <code>background-image</code>, hoặc link lh3 thô.
-  Enter để format &amp; hiển thị. Click ảnh mở bản gốc <code>=s0</code>, click dòng link để copy.</p>
+<p class="sub">Dán link Google Maps, CSS <code>background-image</code> hoặc link lh3 thô, ảnh hiện ngay.
+  Bấm ảnh để mở bản gốc <code>=s0</code>, bấm dòng link dưới ảnh để copy.</p>
 <div class="panels">
 <div class="panel main">
   <div class="ed">
     <div class="ln" id="ln" aria-hidden="true"><div id="lnIn"></div></div>
-    <textarea id="in" placeholder="Dán link vào đây…" spellcheck="false" wrap="off"></textarea>
+    <textarea id="in" placeholder="Dán link vào đây…" spellcheck="false" wrap="off" aria-label="Danh sách link ảnh"></textarea>
     <div class="rn" id="rn"><div id="rnIn"></div></div>
   </div>
   <div class="bar">
-    <button id="go">Format &amp; hiển thị</button>
+    <button id="go" class="pri">Hiện ảnh</button>
     <button id="copyall">Copy tất cả</button>
     <button id="clr">Xoá hết</button>
-    <label class="sz">Preview
+    <label class="sz">Cỡ xem trước
       <select id="sz">
         <option value="=w400">400px</option>
         <option value="=w800" selected>800px</option>
@@ -219,16 +246,16 @@
 </div>
 
 <div class="panel geo">
-  <p class="ttl">Tra địa chỉ theo toạ độ (gis.vn)</p>
+  <p class="ttl">Tra địa chỉ theo toạ độ</p>
   <div class="row">
-    <input type="text" id="ll" placeholder="12.2653665, 109.1953678 — hoặc dán link Maps">
-    <button id="lookup">Tra</button>
+    <input type="text" id="ll" placeholder="12.2653665, 109.1953678 hoặc dán link Maps" aria-label="Toạ độ hoặc link Maps">
+    <button id="lookup" class="pri">Tra</button>
   </div>
   <div class="geo-out" id="geoOut"></div>
   <details class="tok">
-    <summary>Token (tự động)</summary>
+    <summary>Token gis.vn (tự động)</summary>
     <div class="row">
-      <input type="text" id="tok" placeholder="tự xin khi tra lần đầu" spellcheck="false">
+      <input type="text" id="tok" placeholder="tự xin khi tra lần đầu" spellcheck="false" aria-label="Token">
       <button id="newtok">Lấy mới</button>
     </div>
     <p>Mỗi token chỉ dùng được 10 lượt cho mỗi API. Hết lượt, trang tự xin token mới rồi tra lại —
@@ -239,19 +266,27 @@
 </div>
 
 <div class="grid" id="grid" hidden></div>
-<div class="empty" id="empty">Chưa có ảnh nào — dán link vào ô trên rồi nhấn Enter.</div>
+<div class="empty" id="empty"><span>Chưa có ảnh nào. Dán link vào ô trên là ảnh hiện ra.</span></div>
 </section>
 
 <section data-tab="video" hidden>
 <div class="panels">
 <div class="panel dlp">
-  <p class="ttl">Tải từ link TikTok / Facebook / video Google Maps</p>
+  <p class="ttl">Tải video về máy</p>
   <div class="row">
-    <input type="text" id="dl" placeholder="Dán link Chia sẻ của TikTok/Facebook, hoặc link video Google Maps / lh3">
-    <button id="dlgo">Tải</button>
+    <input type="text" id="dl" placeholder="Dán link video…" aria-label="Link video">
+    <button id="dlgo" class="pri">Tải về</button>
   </div>
-  <div class="row"><input type="text" id="dlname" placeholder="Tên file (để trống = tên mặc định)"></div>
-  <label class="sz hdopt"><input type="checkbox" id="fbhd"> Facebook: lấy bản nét nhất (1080p, thường là AV1/VP9 —
+  <ul class="src" id="src" aria-label="Nguồn tải được">
+    <li data-p="tiktok" style="--c:#fe2c55">TikTok</li>
+    <li data-p="facebook" style="--c:#1877f2">Facebook</li>
+    <li data-p="youtube" style="--c:#ff0000">YouTube</li>
+    <li data-p="instagram" style="--c:#d62976">Instagram</li>
+    <li data-p="gmaps" style="--c:#34a853">Google Maps</li>
+  </ul>
+  <p class="hint" id="hint" aria-live="polite"></p>
+  <div class="row"><input type="text" id="dlname" placeholder="Tên file (để trống thì dùng tên mặc định)" aria-label="Tên file"></div>
+  <label class="sz hdopt" id="hdopt" hidden><input type="checkbox" id="fbhd"> Lấy bản nét nhất (1080p, thường là AV1/VP9,
     máy thiếu codec sẽ ra màn đen). Bỏ tích: bản H.264 phát được mọi nơi.</label>
   <div class="geo-out" id="dlOut"></div>
   <details class="tok" id="fbHelp">
@@ -268,14 +303,14 @@
   <div class="drop">
     <button id="pick">Chọn video…</button>
     <input type="file" id="vf" accept="video/*" multiple hidden>
-    <span>hoặc kéo thả file vào đây. Chỉ phát trong máy, không tải lên đâu cả.</span>
+    <span>hoặc kéo thả file vào đây. Chỉ phát trong trình duyệt, không tải lên đâu cả.</span>
   </div>
 </div>
 </div>
 
 <div class="vids" id="vids"></div>
 </section>
-</div>
+</main>
 
 <script>
 /* ---------- tách link ---------- */
@@ -590,13 +625,32 @@ vid.addEventListener('dragover',e=>{ e.preventDefault(); vid.classList.add('drag
 vid.addEventListener('dragleave',e=>{ if(!vid.contains(e.relatedTarget)) vid.classList.remove('drag'); });
 vid.addEventListener('drop',e=>{ e.preventDefault(); vid.classList.remove('drag'); addVideos(e.dataTransfer.files); });
 
-/* ---------- tải video TikTok / Facebook từ link Chia sẻ ---------- */
+/* ---------- tải video TikTok / Facebook / YouTube / Instagram từ link Chia sẻ ---------- */
 const dl=document.getElementById('dl'), dlOut=document.getElementById('dlOut'), fbHelp=document.getElementById('fbHelp');
 function platform(u){
   let h=''; try{ h=new URL(u).hostname; }catch(e){}
   return /(^|\.)tiktok\.com$/.test(h) ? 'tiktok'
-       : /(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(h) ? 'facebook' : null;
+       : /(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(h) ? 'facebook'
+       : /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/.test(h) ? 'youtube'
+       : /(^|\.)(instagram\.com|instagr\.am)$/.test(h) ? 'instagram' : null;
 }
+// Link trong ô thuộc nguồn nào. Link Maps đầy đủ / lh3 thô / CSS — cùng cách bóc với phần xem ảnh.
+function detect(){
+  const g=extract(dl.value)[0];
+  const u=g ? base(g) : (dl.value.match(/https?:\/\/\S+/)||[])[0];
+  return {u, p:g ? 'gmaps' : u && platform(u)};
+}
+// Nhãn nguồn sáng theo link đang dán + một dòng nói nguồn đó tải được gì. Ô "bản nét nhất" chỉ có nghĩa với Facebook.
+const HINT={tiktok:'Bản không logo, H.264.', facebook:'Video và reel công khai.', youtube:'Nét nhất tới 1080p, H.264.',
+  instagram:'Reel và bài video công khai. Story và tài khoản riêng tư không tải được.',
+  gmaps:'Video gốc người dùng đăng lên Google Maps.'};
+function mark(){
+  const p=detect().p;
+  document.querySelectorAll('#src li').forEach(li=>li.classList.toggle('on',li.dataset.p===p));
+  document.getElementById('hint').textContent=HINT[p]||'';
+  document.getElementById('hdopt').hidden=p!=='facebook';
+}
+dl.addEventListener('input',mark);
 const addLink=(text,href)=>{ const a=document.createElement('a'); a.textContent=text; a.href=href;
   a.target='_blank'; a.rel='noopener noreferrer'; dlOut.append(a); };
 
@@ -644,11 +698,11 @@ async function gmapsVideo(b){
 }
 
 async function download(){
-  const g=extract(dl.value)[0];  // link Maps đầy đủ / lh3 thô / CSS — cùng cách bóc với phần xem ảnh
-  const u=g ? base(g) : (dl.value.match(/https?:\/\/\S+/)||[])[0];
-  const p=g ? 'gmaps' : u && platform(u);
+  const {u,p}=detect();
   const name=document.getElementById('dlname').value.trim();  // Worker tự lọc ký tự cấm và thêm .mp4
-  if(!p){ say('Dán link chia sẻ của TikTok/Facebook, hoặc link video Google Maps.','bad',dlOut); return; }
+  if(!p){ say('Dán link chia sẻ của TikTok, Facebook, YouTube, Instagram hoặc link video Google Maps.','bad',dlOut); return; }
+  // YouTube/Instagram chỉ tải được qua Worker + máy nhà (yt-dlp trong fbrelay.py): hai bên chặn mọi trang khác đọc video.
+  if((p==='youtube' || p==='instagram') && !VIDEO_PROXY){ say('Tải YouTube/Instagram cần Worker (xem README).','bad',dlOut); return; }
   if(VIDEO_PROXY){
     // Để trình duyệt tự tải (Worker trả Content-Disposition: attachment): có tiến độ + tốc độ ở thanh
     // tải xuống và ghi ra đĩa ngay khi dữ liệu về, thay vì kéo hết vào RAM rồi mới lưu — trước đây nhìn
@@ -765,6 +819,8 @@ fbbm.onclick=e=>{ e.preventDefault(); alert('Kéo nút này lên thanh dấu tra
   console.assert(platform('https://www.tiktok.com/@a/video/1')==='tiktok','pf tiktok dai');
   console.assert(platform('https://www.facebook.com/share/v/1AbC/')==='facebook','pf fb share');
   console.assert(platform('https://fb.watch/xyz/')==='facebook','pf fb.watch');
+  console.assert(platform('https://www.instagram.com/reel/CDUMkliABpa/?igsh=x')==='instagram','pf ig');
+  console.assert(platform('https://notinstagram.com/reel/x')===null,'pf ig la');
   console.assert(platform('https://eviltiktok.com/x')===null && platform('abc')===null,'pf la');
   // Giống trang reel thật: id đứng ngay sau link của chính nó; id reel kế tiếp (222) cũng lọt vào đoạn của reel trước.
   const fh='"id":"222" "browser_native_hd_url":"https:\\/\\/v.fbcdn.net\\/a.mp4?x=1" "id":"111" "next":{"id":"222"}'
