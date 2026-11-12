@@ -9,13 +9,18 @@ Hoặc tải `index.html` về, double-click là chạy. Không cần cài gì, 
 
 ## Xem ảnh
 
-Nhận cả ba dạng link, dán lẫn lộn cũng được:
+Nhận cả bốn dạng link, dán lẫn lộn cũng được:
 
 | Dạng | Ví dụ |
 |---|---|
 | Link Google Maps đầy đủ | `https://www.google.com/maps/place/.../data=!3m8!6shttps:%2F%2Flh3...` |
 | CSS `background-image` | `background-image: url("https://lh3.googleusercontent.com/...=w203-h152-k-no");` |
 | Link lh3 thô | `https://lh3.googleusercontent.com/gps-cs-s/AHRPTWk...` |
+| Link Google Maps Street View | `https://www.google.com/maps/place/.../@20.97,107.01,10a,75y,21.9h,90t/data=!3m7!1e1!3m5!1s<panoid>!2e0!6s...` hoặc link `streetviewpixels-pa.googleapis.com/v1/thumbnail?panoid=...` |
+
+Ảnh Street View do Google chụp không có link lh3: ảnh lấy theo góc camera trong link Maps, qua endpoint
+thumbnail **không công khai** (Google đổi là hỏng), mặc định `w=2048` — chưa đo được giới hạn tối đa của `w`.
+Click ảnh Street View mở trang xem 360 trên Google Maps. Link rút gọn `maps.app.goo.gl` chưa hỗ trợ.
 
 Dán xong là tự chuẩn hoá và hiển thị ngay (hoặc nhấn **Enter** sau khi gõ tay):
 
@@ -125,10 +130,12 @@ Nút `×` đóng video và giải phóng bộ nhớ. Phát được định dạ
 
 ## Giao diện
 
-Hai tab trên thanh đầu trang (thanh này dính trên cùng khi cuộn):
+Ba tab trên thanh đầu trang (thanh này dính trên cùng khi cuộn):
 
 - **Ảnh & địa chỉ** — ô dán link ảnh và ô tra toạ độ nằm cạnh nhau, lưới ảnh ngay bên dưới.
 - **Video** — tải từ link TikTok/Facebook và xem file trong máy nằm cạnh nhau, video phát bên dưới.
+- **Hướng dẫn** (`#guide`) — trang này làm được gì: bốn công cụ, cách dùng từng cái, dạng link nhận được,
+  thứ chưa làm được và dữ liệu đi đâu. Ô trống ở tab Ảnh cũng có ba bước bắt đầu và link sang đây.
 
 Tab nằm trên địa chỉ trang (`#video`), nên nút Back và việc gửi link cho người khác đều mở đúng tab.
 Màn hẹp (≤560px) thì các khung xếp chồng, tab chiếm trọn một hàng cho dễ bấm.

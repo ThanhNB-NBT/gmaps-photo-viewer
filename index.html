@@ -59,9 +59,10 @@
     .tabs a{flex:1;text-align:center;padding:8px}
   }
 
-  .sub{color:var(--mut);font-size:14px;margin:0 0 14px;max-width:76ch}
-  .sub code{background:var(--sunk);border:1px solid var(--line);border-radius:5px;
-    padding:1px 5px;font:12px ui-monospace,Consolas,monospace}
+  .lead{color:var(--mut);font-size:13.5px;line-height:1.5;margin:0 0 12px;max-width:68ch}
+  .lead a,.guide a{color:var(--water)}
+  code{background:var(--sunk);border:1px solid var(--line);border-radius:5px;
+    padding:1px 5px;font:12px ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
 
   button{font:500 14px/1.3 var(--ui);border-radius:9px;cursor:pointer;
     border:1px solid var(--line2);background:var(--paper);color:var(--ink);
@@ -73,7 +74,8 @@
   #theme{margin-left:auto;flex:none;padding:7px 12px;background:transparent;white-space:nowrap}
 
   .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px}
-  .ttl{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0 0 11px}
+  .ttl{font-size:16px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px}
+  .ttl:not(:has(+.lead)){margin-bottom:11px}
 
   /* Số dòng nằm ngoài textarea nên bôi đen chép link không dính số.
      Cả hai phải cùng font + line-height, và textarea để wrap=off, nếu không số lệch hàng. */
@@ -175,7 +177,42 @@
   .empty::before{content:'';position:absolute;inset:0;background:var(--line2);opacity:.75;
     -webkit-mask:var(--topo) center/cover no-repeat;mask:var(--topo) center/cover no-repeat;
     --topo:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 240' preserveAspectRatio='xMidYMid slice' fill='none' stroke='black' stroke-width='1.1'%3E%3Cg transform='translate(170 150)'%3E%3Cellipse rx='34' ry='18' transform='rotate(-12)'/%3E%3Cellipse rx='72' ry='40' transform='rotate(-7)'/%3E%3Cellipse rx='114' ry='66' transform='rotate(-14)'/%3E%3Cellipse rx='160' ry='94' transform='rotate(-6)'/%3E%3Cellipse rx='210' ry='126' transform='rotate(-11)'/%3E%3Cellipse rx='264' ry='160' transform='rotate(-4)'/%3E%3C/g%3E%3Cg transform='translate(640 70)'%3E%3Cellipse rx='26' ry='15' transform='rotate(22)'/%3E%3Cellipse rx='60' ry='36' transform='rotate(15)'/%3E%3Cellipse rx='98' ry='60' transform='rotate(24)'/%3E%3Cellipse rx='140' ry='88' transform='rotate(13)'/%3E%3Cellipse rx='186' ry='118' transform='rotate(19)'/%3E%3Cellipse rx='236' ry='152' transform='rotate(10)'/%3E%3C/g%3E%3C/svg%3E")}
-  .empty span{position:relative;padding:4px 12px;background:var(--land);border-radius:999px}
+  /* Ô trống cũng là chỗ chỉ đường: ba bước, nền đặc để chữ không lẫn vào đường đồng mức. */
+  .empty-in{position:relative;display:inline-block;max-width:52ch;padding:16px 22px;text-align:left;
+    background:var(--land);border-radius:14px}
+  .empty-in strong{display:block;color:var(--ink);font-size:15px;font-weight:600}
+  .empty-in ol{margin:8px 0 10px;padding-left:20px}
+  .empty-in a{color:var(--water);font-weight:500}
+
+  /* ---------- hướng dẫn: bảng chú giải của tấm bản đồ ---------- */
+  .guide{max-width:1180px;margin:0 auto}
+  .eyebrow{margin:0;color:var(--water);font-size:12.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  .guide h2{margin:4px 0 8px;font-size:clamp(24px,3.4vw,32px);font-weight:700;letter-spacing:-.025em;line-height:1.2}
+  .guide>.lead{font-size:15px;max-width:64ch;margin-bottom:22px}
+  .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(440px,100%),1fr));gap:16px}
+  .lg{display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+  .lg h3{display:flex;align-items:center;gap:12px;margin:0 0 8px;font-size:18px;font-weight:600;letter-spacing:-.015em;line-height:1.3}
+  /* Cùng cái ghim với số thứ tự ảnh (.no), chỉ khác là nằm trong dòng chữ. */
+  .pin{position:relative;z-index:0;flex:none;width:28px;height:28px;display:grid;place-items:center;
+    color:#fff;font:700 12.5px/1 var(--ui)}
+  .pin::before{content:'';position:absolute;inset:0;z-index:-1;background:var(--pin);
+    border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
+  :root[data-theme=dark] .pin{color:#1d2a26}
+  @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .pin{color:#1d2a26}}
+  .lg p{margin:0 0 4px}
+  .lg h4,.notes h3{margin:16px 0 6px;color:var(--mut);font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  .lg :is(ol,ul),.notes ul{margin:0;padding-left:20px}
+  .lg li,.notes li{margin:3px 0}
+  .lg li::marker{color:var(--mut)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0!important}
+  .chips li{margin:0;padding:3px 11px;border:1px solid var(--line2);border-radius:999px;font-size:12.5px}
+  .go{align-self:flex-start;margin-top:auto;padding:9px 15px;border-radius:9px;background:var(--water);color:var(--water-fg)!important;
+    font-size:14px;font-weight:600;text-decoration:none}
+  .lg .go{margin-top:18px}
+  .lg>:nth-last-child(2){margin-bottom:auto}   /* đẩy nút xuống đáy để bốn ô thẳng hàng */
+  .go:hover{filter:brightness(1.1)}
+  .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(440px,100%),1fr));gap:0 38px;
+    margin-top:26px;padding:6px 22px 20px;background:var(--wash);border-radius:14px}
 
   .card{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;
     transition:box-shadow .15s,border-color .15s}
@@ -214,16 +251,18 @@
   <nav class="tabs" aria-label="Chức năng">
     <a href="#maps">Ảnh &amp; địa chỉ</a>
     <a href="#video">Video</a>
+    <a href="#guide">Hướng dẫn</a>
   </nav>
   <button id="theme" title="Đổi giao diện"></button>
 </header>
 
 <main class="wrap">
 <section data-tab="maps">
-<p class="sub">Dán link Google Maps, CSS <code>background-image</code> hoặc link lh3 thô, ảnh hiện ngay.
-  Bấm ảnh để mở bản gốc <code>=s0</code>, bấm dòng link dưới ảnh để copy.</p>
 <div class="panels">
 <div class="panel main">
+  <h2 class="ttl">Xem ảnh Google Maps</h2>
+  <p class="lead">Dán link Google Maps (kể cả Street View), CSS <code>background-image</code> hoặc link lh3.
+    Bấm ảnh để mở bản gốc, bấm dòng link dưới ảnh để copy.</p>
   <div class="ed">
     <div class="ln" id="ln" aria-hidden="true"><div id="lnIn"></div></div>
     <textarea id="in" placeholder="Dán link vào đây…" spellcheck="false" wrap="off" aria-label="Danh sách link ảnh"></textarea>
@@ -246,7 +285,8 @@
 </div>
 
 <div class="panel geo">
-  <p class="ttl">Tra địa chỉ theo toạ độ</p>
+  <h2 class="ttl">Tra địa chỉ theo toạ độ</h2>
+  <p class="lead">Ra địa chỉ hành chính Việt Nam theo 2 cấp và 3 cấp. Bấm một dòng kết quả để copy.</p>
   <div class="row">
     <input type="text" id="ll" placeholder="12.2653665, 109.1953678 hoặc dán link Maps" aria-label="Toạ độ hoặc link Maps">
     <button id="lookup" class="pri">Tra</button>
@@ -266,13 +306,22 @@
 </div>
 
 <div class="grid" id="grid" hidden></div>
-<div class="empty" id="empty"><span>Chưa có ảnh nào. Dán link vào ô trên là ảnh hiện ra.</span></div>
+<div class="empty" id="empty"><div class="empty-in">
+  <strong>Chưa có ảnh nào</strong>
+  <ol>
+    <li>Mở ảnh hoặc Street View trên Google Maps, chép địa chỉ trang.</li>
+    <li>Dán vào ô phía trên. Dán nhiều link một lượt cũng được.</li>
+    <li>Bấm ảnh để mở bản gốc, hoặc trang xem 360 với Street View.</li>
+  </ol>
+  <a href="#guide">Xem trang này làm được những gì</a>
+</div></div>
 </section>
 
 <section data-tab="video" hidden>
 <div class="panels">
 <div class="panel dlp">
-  <p class="ttl">Tải video về máy</p>
+  <h2 class="ttl">Tải video về máy</h2>
+  <p class="lead">Dán link lấy từ nút Chia sẻ → Sao chép liên kết. Nguồn nào nhận ra thì nhãn bên dưới sáng lên.</p>
   <div class="row">
     <input type="text" id="dl" placeholder="Dán link video…" aria-label="Link video">
     <button id="dlgo" class="pri">Tải về</button>
@@ -299,7 +348,7 @@
 </div>
 
 <div class="panel vid" id="vid">
-  <p class="ttl">Xem video trong máy</p>
+  <h2 class="ttl">Xem video trong máy</h2>
   <div class="drop">
     <button id="pick">Chọn video…</button>
     <input type="file" id="vf" accept="video/*" multiple hidden>
@@ -309,6 +358,128 @@
 </div>
 
 <div class="vids" id="vids"></div>
+</section>
+
+<section data-tab="guide" class="guide" hidden>
+<p class="eyebrow">Chú giải</p>
+<h2>Trang này làm được gì</h2>
+<p class="lead">Bốn công cụ trong một file HTML: không cài đặt, không tài khoản. Mỗi công cụ đều bắt đầu
+  bằng việc dán một đường link.</p>
+
+<div class="legend">
+<article class="lg">
+  <h3><span class="pin" aria-hidden="true">1</span>Xem ảnh Google Maps ở cỡ gốc</h3>
+  <p>Dán link, ảnh hiện thành lưới có đánh số. Mỗi ảnh mở được bản gốc đủ độ phân giải, kể cả ảnh
+    Street View do Google chụp.</p>
+  <h4>Cách làm</h4>
+  <ol>
+    <li>Mở ảnh hoặc Street View trên Google Maps, chép địa chỉ trang trên thanh địa chỉ.</li>
+    <li>Dán vào ô <b>Xem ảnh Google Maps</b>. Dán nhiều link một lượt, lẫn lộn các dạng đều được.</li>
+    <li>Bấm ảnh để mở bản gốc. Với Street View, bấm ảnh mở trang xem 360 trên Google Maps.</li>
+  </ol>
+  <h4>Nhận các dạng link</h4>
+  <ul class="chips">
+    <li>Link Google Maps đầy đủ</li><li>Link Maps đang mở Street View</li>
+    <li>CSS <code>background-image</code></li><li>Link lh3 thô</li><li>Link thumbnail Street View</li>
+  </ul>
+  <h4>Còn làm được</h4>
+  <ul>
+    <li>Gộp link trùng và báo đã gộp bao nhiêu.</li>
+    <li>Rê chuột lên một dòng link thì ô ảnh tương ứng sáng lên, và ngược lại.</li>
+    <li>Bấm dòng link dưới ảnh để copy; <b>Copy tất cả</b> chép cả danh sách; nút × xoá từng link.</li>
+    <li>Đổi cỡ xem trước: 400, 800, 1600px hoặc gốc.</li>
+    <li>Ảnh Street View lấy đúng góc nhìn đang mở trong link, rộng tối đa 2048px.</li>
+  </ul>
+  <a class="go" href="#maps">Mở Ảnh &amp; địa chỉ</a>
+</article>
+
+<article class="lg">
+  <h3><span class="pin" aria-hidden="true">2</span>Tra địa chỉ theo toạ độ</h3>
+  <p>Từ một toạ độ ra địa chỉ hành chính Việt Nam, theo cả cách chia 2 cấp (xã, tỉnh) và 3 cấp
+    (xã, huyện, tỉnh).</p>
+  <h4>Cách làm</h4>
+  <ol>
+    <li>Nhập toạ độ dạng <code>12.2653665, 109.1953678</code>, hoặc dán thẳng link Google Maps của địa điểm.</li>
+    <li>Bấm <b>Tra</b> hoặc nhấn Enter.</li>
+    <li>Bấm vào một dòng kết quả để copy địa chỉ đó.</li>
+  </ol>
+  <h4>Lưu ý</h4>
+  <ul>
+    <li>Chỉ tra được toạ độ trong Việt Nam.</li>
+    <li>Với link Maps, trang lấy toạ độ của địa điểm chứ không lấy vị trí camera (hai cái lệch nhau 20–30m).</li>
+    <li>Dữ liệu từ gis.vn. Token tự xin và tự đổi khi hết lượt, bạn không phải làm gì.</li>
+  </ul>
+  <a class="go" href="#maps">Mở Ảnh &amp; địa chỉ</a>
+</article>
+
+<article class="lg">
+  <h3><span class="pin" aria-hidden="true">3</span>Tải video về máy</h3>
+  <p>Dán link chia sẻ, bấm <b>Tải về</b>. Trang chọn bản phát được trên mọi máy (H.264) thay vì bản
+    nét hơn nhưng dễ ra màn đen.</p>
+  <h4>Nguồn tải được</h4>
+  <ul>
+    <li><b>TikTok</b>: bản không logo.</li>
+    <li><b>Facebook</b>: video và reel công khai. Có ô chọn lấy bản nét nhất 1080p.</li>
+    <li><b>YouTube</b>: video và Shorts, nét nhất tới 1080p.</li>
+    <li><b>Instagram</b>: reel và bài video công khai.</li>
+    <li><b>Google Maps</b>: video gốc người dùng đăng lên địa điểm.</li>
+  </ul>
+  <h4>Còn làm được</h4>
+  <ul>
+    <li>Đặt tên file trước khi tải, có dấu tiếng Việt được.</li>
+    <li>Video Facebook riêng tư hoặc chỉ bạn bè xem: dùng nút kéo lên thanh dấu trang, có sẵn trong tab Video.</li>
+  </ul>
+  <h4>Không tải được</h4>
+  <ul>
+    <li>Bài TikTok dạng slideshow ảnh.</li>
+    <li>Story và tài khoản riêng tư trên Instagram.</li>
+    <li>YouTube trên 1080p. Bài Instagram nhiều video chỉ lấy video đầu.</li>
+  </ul>
+  <a class="go" href="#video">Mở Video</a>
+</article>
+
+<article class="lg">
+  <h3><span class="pin" aria-hidden="true">4</span>Xem video trong máy</h3>
+  <p>Mở nhanh file video để xem ngay trong trình duyệt, nhiều video cạnh nhau.</p>
+  <h4>Cách làm</h4>
+  <ol>
+    <li>Sang tab Video, bấm <b>Chọn video…</b> hoặc kéo thả file vào khung. Chọn nhiều file cùng lúc được.</li>
+    <li>Nút × đóng từng video.</li>
+  </ol>
+  <h4>Lưu ý</h4>
+  <ul>
+    <li>Video không tải lên đâu và không lưu lại: tải lại trang là mất.</li>
+    <li>Phát được định dạng nào tuỳ trình duyệt; mp4 và webm thì chắc chắn.</li>
+  </ul>
+  <a class="go" href="#video">Mở Video</a>
+</article>
+</div>
+
+<div class="notes">
+  <div>
+    <h3>Chưa làm được</h3>
+    <ul>
+      <li>Link rút gọn <code>maps.app.goo.gl</code>: mở link đó trên trình duyệt rồi chép địa chỉ đầy đủ.</li>
+      <li>Tải cả loạt ảnh về máy một lượt: mở từng ảnh gốc rồi lưu.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Dữ liệu của bạn đi đâu</h3>
+    <ul>
+      <li>Xem ảnh và xem video trong máy chạy hoàn toàn trong trình duyệt.</li>
+      <li>Tra địa chỉ gửi toạ độ tới gis.vn.</li>
+      <li>Tải video gửi đường link tới tikwm.com (TikTok) hoặc máy chủ chuyển tiếp của trang; không nơi nào lưu lại.</li>
+      <li>Trình duyệt chỉ nhớ hai thứ: chế độ sáng/tối và token gis.vn.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Mẹo</h3>
+    <ul>
+      <li>Tab nằm trên địa chỉ trang, nên gửi link kèm <code>#video</code> hay <code>#guide</code> là người nhận mở đúng tab.</li>
+      <li>Nút ở góc phải đổi giao diện sáng/tối; không chọn thì theo máy.</li>
+    </ul>
+  </div>
+</div>
 </section>
 </main>
 
@@ -323,19 +494,70 @@ function normalize(s){
   return s;
 }
 
-// Trả về mảng link đã chuẩn hoá về =s0, kèm .dups = số link trùng đã gộp.
+// ponytail: endpoint thumbnail Street View không có tài liệu công khai, chưa đo được trần của w;
+// Google đổi tham số thì sửa ở sv(). Ảnh Google chụp không có link lh3 nên chỉ lấy được qua đây.
+const SV_HOST = 'https://streetviewpixels-pa.googleapis.com/v1/thumbnail?', SV_MAX_W = 2048, SV_FOV = 60;
+const RE_SV = /https:\/\/streetviewpixels-pa\.(?:googleapis\.com|clients6\.google\.com)\/v1\/thumbnail\?[^\s"'!)(<>]+/g;
+// Link Maps đang mở Street View: camera @lat,lng,..a,<fov>y,<yaw>h,<tilt>t rồi !1s<panoid>!2e0.
+// !2e0 = ảnh Google chụp; ảnh 360 người dùng đăng là !2e10 + id AF1Qip…, vẫn đi đường lh3.
+const RE_PANO = /@-?[\d.]+,-?[\d.]+((?:,[\d.]+[a-z])*)\/data=\S*?!1s([\w-]{22})!2e0(?!\d)\S*/g;
+const isSV = u => u.startsWith(SV_HOST);
+
+// Link Street View chuẩn + khoá gộp trùng (panoid + yaw/pitch làm tròn độ).
+function sv(pano,yaw,pitch,fov,cb){
+  yaw = +((((+yaw||0)%360)+360)%360).toFixed(2) % 360;
+  pitch = +(+pitch||0).toFixed(2);
+  return {url: SV_HOST+'panoid='+pano+'&cb_client='+(cb||'maps_sv.tactile')+'&w='+SV_MAX_W+'&h='+SV_MAX_W*9/16
+               +'&yaw='+yaw+'&pitch='+pitch+'&thumbfov='+(Math.round(+fov)||SV_FOV),
+          key: pano+'|'+Math.round(yaw)%360+'|'+Math.round(pitch)};
+}
+
+// Trả về mảng link đã chuẩn hoá (lh3 về =s0, Street View về dạng sv()), giữ thứ tự dán,
+// kèm .dups = số link trùng đã gộp.
 function extract(text){
-  const out=[], seen=new Set(); let dup=0;
-  for(const m of normalize(text).matchAll(RE)){
+  const s=normalize(text), hits=[], spans=[];
+  for(const m of s.matchAll(RE)){
     const url = m[0].split('=')[0].replace(/[.,;)]+$/,'') + '=s0';
-    if(seen.has(url)){ dup++; continue; }
-    seen.add(url); out.push(url);
+    hits.push({i:m.index, url, key:url});
+  }
+  for(const m of s.matchAll(RE_PANO)){
+    const cam = k => (m[1].match(new RegExp(',([\\d.]+)'+k)) || [])[1];
+    const t = cam('t');   // 90t là nhìn ngang
+    hits.push({i:m.index, ...sv(m[2], cam('h'), t===undefined ? 0 : t-90, cam('y'),
+                                (m[0].match(/cb_client=([\w.-]+)/) || [])[1])});
+    spans.push([m.index, m.index+m[0].length]);
+  }
+  for(const m of s.matchAll(RE_SV)){
+    // Thumbnail 900×600 nhúng trong !6s… của link Maps: yaw/pitch hay lệch camera, đã lấy theo @ ở trên nên bỏ.
+    if(spans.some(([a,b])=>m.index>=a && m.index<b)) continue;
+    const q = new URLSearchParams(m[0].slice(m[0].indexOf('?')+1).replace(/[.,;]+$/,''));
+    const pano = q.get('panoid') || '', cb = q.get('cb_client') || '';
+    if(!/^[\w-]+$/.test(pano)) continue;
+    hits.push({i:m.index, ...sv(pano, q.get('yaw'), q.get('pitch'), q.get('thumbfov'), /^[\w.-]+$/.test(cb) && cb)});
+  }
+  hits.sort((a,b)=>a.i-b.i);
+  const out=[], seen=new Set(); let dup=0;
+  for(const h of hits){
+    if(seen.has(h.key)){ dup++; continue; }
+    seen.add(h.key); out.push(h.url);
   }
   out.dups=dup;
   return out;
 }
 
 const base = u => u.slice(0, u.lastIndexOf('='));
+// Link xem trước theo ô "Cỡ xem trước". Street View: w theo cỡ chọn (=s0 → SV_MAX_W), h = w*9/16.
+function thumb(full, sz){
+  if(!isSV(full)) return base(full) + sz;
+  const w = Math.min(+sz.replace(/\D/g,'') || SV_MAX_W, SV_MAX_W);
+  return full.replace(/&w=\d+&h=\d+/, '&w='+w+'&h='+Math.round(w*9/16));
+}
+// Trang xem 360 của ảnh Street View, qua Maps URLs API chính thức.
+function panoUrl(full){
+  const q = new URLSearchParams(full.slice(SV_HOST.length));
+  return 'https://www.google.com/maps/@?api=1&map_action=pano&pano='+q.get('panoid')
+       + '&heading='+q.get('yaw')+'&pitch='+q.get('pitch')+'&fov='+q.get('thumbfov');
+}
 
 // navigator.clipboard chỉ có ở secure context. Mở trang qua http:// hay trong iframe
 // là nó undefined và nút copy im lặng không làm gì -> phải có đường lui.
@@ -381,12 +603,12 @@ sysDark.addEventListener('change',()=>{ if(!root.hasAttribute('data-theme')) app
 // Tab nằm trong #hash: Back/Forward và chia sẻ link đều ra đúng tab, không cần lưu gì.
 // Không có phần tử nào mang id "maps"/"video" nên đổi hash không làm trang nhảy cuộn.
 function showTab(){
-  const t = location.hash==='#video' ? 'video' : 'maps';
+  const t = {'#video':'video','#guide':'guide'}[location.hash] || 'maps';
   document.querySelectorAll('[data-tab]').forEach(s=>s.hidden = s.dataset.tab!==t);
   document.querySelectorAll('.tabs a').forEach(a=>a.hash==='#'+t
     ? a.setAttribute('aria-current','page') : a.removeAttribute('aria-current'));
 }
-addEventListener('hashchange',showTab);
+addEventListener('hashchange',()=>{ showTab(); scrollTo(0,0); });   // tab mới thì xem từ đầu
 showTab();
 
 /* ---------- hiển thị ---------- */
@@ -449,14 +671,14 @@ function card(full,i){
   img.referrerPolicy='no-referrer'; img.loading='lazy'; img.alt='';
   img.onload=()=>{ st.className='st dim'; st.textContent=img.naturalWidth+'×'+img.naturalHeight; };
   img.onerror=()=>{ st.className='st bad'; st.textContent='không tải được'; img.remove(); };
-  img.onclick=()=>window.open(full,'_blank','noopener');
+  img.onclick=()=>window.open(isSV(full) ? panoUrl(full) : full,'_blank','noopener');
   // ponytail: preview dùng bản thu nhỏ; =s0 có thể là 12000x9000 nên chỉ mở khi click.
-  img.src = base(full) + sz.value;
+  img.src = thumb(full, sz.value);
   box.append(img, st, no);
 
   const l=document.createElement('div'); l.className='u'; l.textContent=full; l.title='Click để copy';
   l.onclick=()=>copy(full).then(ok=>{
-    l.classList.toggle('ok',ok); l.textContent = ok ? 'đã copy link =s0' : 'copy không được';
+    l.classList.toggle('ok',ok); l.textContent = ok ? (isSV(full) ? 'đã copy link Street View' : 'đã copy link =s0') : 'copy không được';
     setTimeout(()=>{ l.classList.remove('ok'); l.textContent=full; },900);
   });
   const foot=document.createElement('div'); foot.className='foot';
@@ -636,7 +858,7 @@ function platform(u){
 }
 // Link trong ô thuộc nguồn nào. Link Maps đầy đủ / lh3 thô / CSS — cùng cách bóc với phần xem ảnh.
 function detect(){
-  const g=extract(dl.value)[0];
+  const g=extract(dl.value).find(u=>!isSV(u));   // Street View là ảnh, không có video
   const u=g ? base(g) : (dl.value.match(/https?:\/\/\S+/)||[])[0];
   return {u, p:g ? 'gmaps' : u && platform(u)};
 }
@@ -787,6 +1009,38 @@ fbbm.onclick=e=>{ e.preventDefault(); alert('Kéo nút này lên thanh dấu tra
   const all=extract(cases.join('\n'));
   console.assert(all.length===1 && all.dups===2,'dedup',all.length,all.dups);
   console.assert(base(want)+'=w800'==='https://lh3.googleusercontent.com/'+id+'=w800','thumb');
+  console.assert(thumb(want,'=w800')==='https://lh3.googleusercontent.com/'+id+'=w800','thumb lh3');
+
+  // Street View
+  const svq=u=>new URLSearchParams(u.split('?')[1]);
+  const maps='https://www.google.com/maps/place/C%C6%A1m+s%E1%BA%A1ch+c%C3%B4+Huy%E1%BB%81n/@20.9768308,107.0130764,10a,75y,21.9h,90t/data=!3m7!1e1!3m5!1scdO5e4Axs1aFO--N3CSwsA!2e0!6shttps:%2F%2Fstreetviewpixels-pa.clients6.google.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D0%26panoid%3DcdO5e4Axs1aFO--N3CSwsA%26yaw%3D21.898174!7i16384!8i8192!4m7!3m6!1s0x314a592ca1c03301:0x3bb9010f15048dc4!8m2!3d20.9768976!4d107.0131024!10e5!16s%2Fg%2F11fpsn6hpc?entry=ttu&g_ep=EgoyMDI2MTEwOS4wIKXMDSoASAFQAw%3D%3D';
+  const s1=extract(maps), q1=svq(s1[0]||'');
+  console.assert(s1.length===1 && s1.dups===0,'sv maps 1 anh',s1);
+  console.assert(q1.get('panoid')==='cdO5e4Axs1aFO--N3CSwsA' && q1.get('yaw')==='21.9' && q1.get('pitch')==='0'
+    && q1.get('thumbfov')==='75' && q1.get('w')==='2048' && q1.get('h')==='1152','sv maps tham so',s1[0]);
+  const s2=extract(maps+'\n'+maps);
+  console.assert(s2.length===1 && s2.dups===1,'sv maps dan 2 lan',s2.length,s2.dups);
+  const pn='AAAAAAAAAAAAAAAAAAA-_A';
+  const s3=extract('https://www.google.com/maps/@10.1,106.2,3a,60y,200h,95t/data=!3m8!1e1!3m6!1s'+pn+'!2e0!5s20230101T000000!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fpanoid%3D'+pn+'%26cb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26yaw%3D123!7i16384!8i8192');
+  console.assert(s3.length===1 && s3.dups===0 && svq(s3[0]).get('pitch')==='5' && svq(s3[0]).get('yaw')==='200','sv !5s + 95t',s3);
+  // Không có h/t → yaw 0, pitch 0; @ không parse được → dùng thumbnail nhúng.
+  const s3b=extract('https://www.google.com/maps/@10.1,106.2,3a,60y/data=!3m6!1e1!3m4!1s'+pn+'!2e0!7i16384!8i8192');
+  console.assert(s3b.length===1 && svq(s3b[0]).get('yaw')==='0' && svq(s3b[0]).get('pitch')==='0','sv thieu h,t',s3b);
+  const s3c=extract('data=!3m7!1e1!3m5!1s'+pn+'!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fpanoid%3D'+pn+'%26yaw%3D123!7i16384');
+  console.assert(s3c.length===1 && svq(s3c[0]).get('yaw')==='123','sv du phong thumbnail nhung',s3c);
+  const tn='https://streetviewpixels-pa.googleapis.com/v1/thumbnail?panoid=Ae9ujHUIK0o-gT5CDddvKw&cb_client=search.gws-prod.grass&w=408&h=240&yaw=185.40459&pitch=-0.070421696&thumbfov=100';
+  const s4=extract(tn), q4=svq(s4[0]||'');
+  console.assert(s4.length===1 && q4.get('w')==='2048' && q4.get('yaw')==='185.4' && q4.get('pitch')==='-0.07'
+    && q4.get('thumbfov')==='100' && q4.get('cb_client')==='search.gws-prod.grass','sv thumbnail roi',s4[0]);
+  console.assert(extract(s4[0])[0]===s4[0] && extract(s1[0])[0]===s1[0],'sv idempotent');
+  console.assert(svq(thumb(s4[0],'=w800')).get('w')==='800' && svq(thumb(s4[0],'=w800')).get('h')==='450'
+    && thumb(s4[0],'=s0')===s4[0],'sv thumb');
+  const s5=extract(tn+'\n'+cases[2]+'\n'+maps);
+  console.assert(s5.length===3 && s5[0]===s4[0] && s5[1]===want && s5[2]===s1[0],'sv tron, dung thu tu',s5);
+  const s6=extract('https://www.google.com/maps/place/x/@1.5,2.5,3a,75y,90t/data=!3m8!1e1!3m6!1sAF1QipABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcd!2e10!3e11!6shttps:%2F%2Flh3.googleusercontent.com%2F'+id.replace('/','%2F')+'%3Dw114-h86-k-no!7i12000!8i9000');
+  console.assert(s6.length===1 && s6[0]===want,'anh 360 nguoi dung van la lh3',s6);
+  console.assert(extract('/@1.5,2.5,3a,75y,90t/data=!3m8!1e1!3m6!1sAF1QipABCDEFGHIJKLMNOP!2e10!7i1').length===0,'2e10 khong phai sv');
+  console.assert(panoUrl(s1[0])==='https://www.google.com/maps/@?api=1&map_action=pano&pano=cdO5e4Axs1aFO--N3CSwsA&heading=21.9&pitch=0&fov=75','sv pano url');
 
   const eq=(a,b)=>a && Math.abs(a[0]-b[0])<1e-9 && Math.abs(a[1]-b[1])<1e-9;
   console.assert(eq(parseLL('12.2653665, 109.1953678'),[12.2653665,109.1953678]),'ll thuong');
