@@ -92,6 +92,8 @@
     color:var(--mut);font:14px/1 system-ui,sans-serif;cursor:pointer;
     display:flex;align-items:center;justify-content:center}
   .x:hover{background:var(--pin);color:#fff}
+  .x.dl:hover{background:var(--water);color:var(--water-fg)}
+  .x:disabled{opacity:.4;cursor:default}
   #rnIn > div .x{width:100%;height:100%;border-radius:4px}
   .ed:focus-within{outline:2px solid var(--water);outline-offset:1px}
   /* Tuyệt đối, nếu không 50 số sẽ kéo khung cao hơn textarea. */
@@ -282,6 +284,10 @@
     </label>
     <span class="count" id="count"></span>
   </div>
+  <div class="bar">
+    <input type="text" id="imgname" placeholder="Tên file ảnh (để trống thì dùng tên mặc định)" aria-label="Tên file ảnh">
+    <button id="dlall">Tải tất cả</button>
+  </div>
 </div>
 
 <div class="panel geo">
@@ -311,7 +317,7 @@
   <ol>
     <li>Mở ảnh hoặc Street View trên Google Maps, chép địa chỉ trang.</li>
     <li>Dán vào ô phía trên. Dán nhiều link một lượt cũng được.</li>
-    <li>Bấm ảnh để mở bản gốc, hoặc trang xem 360 với Street View.</li>
+    <li>Bấm ảnh để mở bản gốc, hoặc trang xem 360 với Street View. Nút ↓ tải ảnh về máy.</li>
   </ol>
   <a href="#guide">Xem trang này làm được những gì</a>
 </div></div>
@@ -387,6 +393,8 @@
     <li>Gộp link trùng và báo đã gộp bao nhiêu.</li>
     <li>Rê chuột lên một dòng link thì ô ảnh tương ứng sáng lên, và ngược lại.</li>
     <li>Bấm dòng link dưới ảnh để copy; <b>Copy tất cả</b> chép cả danh sách; nút × xoá từng link.</li>
+    <li>Tải ảnh gốc về máy: nút ↓ dưới từng ảnh, hoặc <b>Tải tất cả</b>. Điền ô <b>Tên file ảnh</b> thì file mang tên đó,
+      nhiều ảnh thì tự thêm số thứ tự (<code>tên_1</code>, <code>tên_2</code>…).</li>
     <li>Đổi cỡ xem trước: 400, 800, 1600px hoặc gốc.</li>
     <li>Ảnh Street View lấy đúng góc nhìn đang mở trong link, rộng tối đa 2048px.</li>
   </ul>
@@ -460,7 +468,6 @@
     <h3>Chưa làm được</h3>
     <ul>
       <li>Link rút gọn <code>maps.app.goo.gl</code>: mở link đó trên trình duyệt rồi chép địa chỉ đầy đủ.</li>
-      <li>Tải cả loạt ảnh về máy một lượt: mở từng ảnh gốc rồi lưu.</li>
     </ul>
   </div>
   <div>
@@ -557,6 +564,14 @@ function panoUrl(full){
   const q = new URLSearchParams(full.slice(SV_HOST.length));
   return 'https://www.google.com/maps/@?api=1&map_action=pano&pano='+q.get('panoid')
        + '&heading='+q.get('yaw')+'&pitch='+q.get('pitch')+'&fov='+q.get('thumbfov');
+}
+// Tên file ảnh tải về (chưa có đuôi): tên người dùng điền, kèm số thứ tự khi danh sách có từ 2 ảnh
+// để không đè nhau; không điền thì đặt theo id ảnh.
+function imgName(full, i, n, name){
+  name = name.trim().replace(/\.(jpe?g|png|webp|gif)$/i,'');
+  if(name) return n>1 ? name+'_'+(i+1) : name;
+  return isSV(full) ? 'streetview_'+new URLSearchParams(full.slice(SV_HOST.length)).get('panoid')
+                    : 'gmaps_'+base(full).slice(-12);
 }
 
 // navigator.clipboard chỉ có ở secure context. Mở trang qua http:// hay trong iframe
@@ -682,7 +697,16 @@ function card(full,i){
     setTimeout(()=>{ l.classList.remove('ok'); l.textContent=full; },900);
   });
   const foot=document.createElement('div'); foot.className='foot';
-  foot.append(l, xBtn(i,'Xoá link '+(i+1)));
+  const d=document.createElement('button'); d.className='x dl'; d.textContent='↓';
+  d.title='Tải ảnh gốc về máy'; d.setAttribute('aria-label','Tải ảnh '+(i+1));
+  d.onclick=async()=>{
+    d.disabled=true; l.textContent='đang tải…';
+    const n=await saveImg(full,i);
+    d.disabled=false; l.classList.toggle('ok',!!n);
+    l.textContent = n ? 'đã tải '+n : 'không tải được, bấm ảnh để mở rồi lưu tay';
+    setTimeout(()=>{ l.classList.remove('ok'); l.textContent=full; }, n ? 1500 : 3000);
+  };
+  foot.append(l, d, xBtn(i,'Xoá link '+(i+1)));
   c.append(box,foot); return c;
 }
 
@@ -743,6 +767,33 @@ document.getElementById('clr').onclick=()=>{
   count.textContent=''; drawLines(); ta.focus();
 };
 sz.onchange=()=>{ if(!grid.hidden) render(); };
+
+/* ---------- tải ảnh ---------- */
+// Kéo bản gốc (lh3 =s0, Street View w=SV_MAX_W) về thành blob rồi lưu: a[download] bị bỏ qua với link khác origin.
+// Trả về tên file đã lưu, hoặc null khi máy chủ ảnh không cho đọc (CORS) / lỗi mạng.
+async function saveImg(full,i){
+  try{
+    const r=await fetch(full,{referrerPolicy:'no-referrer',signal:AbortSignal.timeout(120e3)});
+    if(!r.ok) return null;
+    const b=await r.blob();
+    const name=imgName(full,i,cards.length,document.getElementById('imgname').value)
+      +'.'+({'image/png':'png','image/webp':'webp','image/gif':'gif'}[b.type]||'jpg');
+    saveBlob(b,name);
+    return name;
+  }catch(e){ return null; }
+}
+document.getElementById('dlall').onclick=async e=>{
+  const urls=extract(ta.value), b=e.currentTarget;
+  if(!urls.length) return;
+  b.disabled=true; let ok=0;
+  for(let i=0;i<urls.length;i++){
+    b.textContent='Đang tải '+(i+1)+'/'+urls.length+'…';
+    if(await saveImg(urls[i],i)) ok++;
+    await new Promise(r=>setTimeout(r,400));   // tải dồn dập thì trình duyệt bỏ bớt file
+  }
+  b.textContent='Đã tải '+ok+'/'+urls.length+' ảnh';
+  setTimeout(()=>{ b.textContent='Tải tất cả'; b.disabled=false; },2500);
+};
 
 /* ---------- tra địa chỉ theo toạ độ ---------- */
 // !3d/!4d là toạ độ thật của địa điểm, @lat,lng chỉ là vị trí camera -> ưu tiên !3d/!4d.
@@ -1040,6 +1091,8 @@ fbbm.onclick=e=>{ e.preventDefault(); alert('Kéo nút này lên thanh dấu tra
   const s6=extract('https://www.google.com/maps/place/x/@1.5,2.5,3a,75y,90t/data=!3m8!1e1!3m6!1sAF1QipABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcd!2e10!3e11!6shttps:%2F%2Flh3.googleusercontent.com%2F'+id.replace('/','%2F')+'%3Dw114-h86-k-no!7i12000!8i9000');
   console.assert(s6.length===1 && s6[0]===want,'anh 360 nguoi dung van la lh3',s6);
   console.assert(extract('/@1.5,2.5,3a,75y,90t/data=!3m8!1e1!3m6!1sAF1QipABCDEFGHIJKLMNOP!2e10!7i1').length===0,'2e10 khong phai sv');
+  console.assert(imgName(want,0,1,'')==='gmaps_'+base(want).slice(-12) && imgName(s1[0],0,1,'  ')==='streetview_cdO5e4Axs1aFO--N3CSwsA','ten anh mac dinh');
+  console.assert(imgName(want,1,3,'Quán cơm')==='Quán cơm_2' && imgName(want,0,1,' Quán cơm.JPG ')==='Quán cơm','ten anh nguoi dung dien');
   console.assert(panoUrl(s1[0])==='https://www.google.com/maps/@?api=1&map_action=pano&pano=cdO5e4Axs1aFO--N3CSwsA&heading=21.9&pitch=0&fov=75','sv pano url');
 
   const eq=(a,b)=>a && Math.abs(a[0]-b[0])<1e-9 && Math.abs(a[1]-b[1])<1e-9;

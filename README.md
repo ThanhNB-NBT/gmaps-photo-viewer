@@ -28,6 +28,10 @@ Dán xong là tự chuẩn hoá và hiển thị ngay (hoặc nhấn **Enter** s
 - Dán link mới tự xuống dòng, không đè lên link cũ.
 - Link trùng bị gộp và **có báo số lượng** đã gộp — ba dạng trên cùng trỏ một ảnh thì chỉ ra một ô.
 - Click ảnh mở bản `=s0`, click dòng link để copy.
+- **Tải ảnh về máy**: nút `↓` dưới mỗi ảnh tải bản gốc (lh3 `=s0`, Street View `w=2048`); **Tải tất cả** tải lần lượt
+  cả danh sách (trình duyệt có thể hỏi cho phép tải nhiều file). Ô *Tên file ảnh*: điền thì file mang tên đó, từ 2 ảnh
+  trở lên tự thêm `_1`, `_2`… theo số thứ tự; để trống thì `gmaps_<đuôi id>` / `streetview_<panoid>`. Đuôi file lấy theo
+  kiểu ảnh máy chủ trả về. Ảnh nào máy chủ không cho trang đọc thì báo "không tải được", mở ảnh rồi lưu tay.
 - Link được đánh số, số nằm **ngoài** ô nhập nên bôi đen chép link không dính số vào.
   Rê chuột lên một dòng link thì số đó và ô ảnh tương ứng cùng sáng lên, và ngược lại.
 - **Copy tất cả** chép toàn bộ ô nhập. Nút `×` xoá từng link — một cột bên phải ô nhập
