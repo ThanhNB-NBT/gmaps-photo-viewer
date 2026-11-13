@@ -245,6 +245,11 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s}
   .u:hover{color:var(--ink)}
   .u.ok{color:var(--water)}
+  #mgrid .box img{object-fit:contain;cursor:default}
+  #mgrid .foot input{flex:1;min-width:0;border:0;background:transparent;padding:9px 4px 9px 12px;font:inherit;color:var(--ink)}
+  #mdrop.drag{outline:2px dashed var(--water)}
+  #mgrid .mck{position:absolute;top:8px;right:8px;z-index:1;width:22px;height:22px;margin:0;accent-color:var(--water);cursor:pointer}
+  #mgrid .card:not(:has(.mck:checked)) img{opacity:.3}
 </style>
 </head>
 <body>
@@ -253,6 +258,7 @@
   <nav class="tabs" aria-label="Chức năng">
     <a href="#maps">Ảnh &amp; địa chỉ</a>
     <a href="#video">Video</a>
+    <a href="#menu">Menu PDF</a>
     <a href="#guide">Hướng dẫn</a>
   </nav>
   <button id="theme" title="Đổi giao diện"></button>
@@ -364,6 +370,27 @@
 </div>
 
 <div class="vids" id="vids"></div>
+</section>
+
+<section data-tab="menu" hidden>
+<div class="panel" id="mdrop">
+  <h2 class="ttl">Tách ảnh món từ menu PDF</h2>
+  <p class="lead">Chọn file PDF menu: trang tự cắt từng ảnh món và điền tên món in ngay dưới hoặc bên phải ảnh.
+    Tên nào sai hay còn trống thì sửa ngay trong ô dưới ảnh. Bỏ tích ảnh không cần rồi tải: từ 6 ảnh trở lên gói
+    thành một file zip kèm bảng kê CSV. Tên file gồm số trang, mục và tên món
+    (<code>p23_pizza_pizza-hai-san.jpg</code>). Nút <b>Tải JSON menu</b> xuất mục, tên món, mô tả và giá đọc được
+    từ chữ trong PDF (không dùng AI, cần rà lại). Xử lý ngay trong trình duyệt, file không tải lên đâu cả.</p>
+  <div class="bar">
+    <button id="mpick" class="pri">Chọn file PDF…</button>
+    <input type="file" id="mf" accept="application/pdf" hidden>
+    <button id="mall" hidden></button>
+    <button id="msel" hidden></button>
+    <button id="mdrop0" hidden>Bỏ chọn ảnh chưa có tên</button>
+    <button id="mjson" hidden></button>
+  </div>
+  <p class="hint" id="mhint" aria-live="polite">Kéo thả file PDF vào khung này cũng được.</p>
+</div>
+<div class="grid" id="mgrid"></div>
 </section>
 
 <section data-tab="guide" class="guide" hidden>
@@ -618,7 +645,7 @@ sysDark.addEventListener('change',()=>{ if(!root.hasAttribute('data-theme')) app
 // Tab nằm trong #hash: Back/Forward và chia sẻ link đều ra đúng tab, không cần lưu gì.
 // Không có phần tử nào mang id "maps"/"video" nên đổi hash không làm trang nhảy cuộn.
 function showTab(){
-  const t = {'#video':'video','#guide':'guide'}[location.hash] || 'maps';
+  const t = {'#video':'video','#menu':'menu','#guide':'guide'}[location.hash] || 'maps';
   document.querySelectorAll('[data-tab]').forEach(s=>s.hidden = s.dataset.tab!==t);
   document.querySelectorAll('.tabs a').forEach(a=>a.hash==='#'+t
     ? a.setAttribute('aria-current','page') : a.removeAttribute('aria-current'));
@@ -897,6 +924,252 @@ vf.onchange=()=>{ addVideos(vf.files); vf.value=''; };
 vid.addEventListener('dragover',e=>{ e.preventDefault(); vid.classList.add('drag'); });
 vid.addEventListener('dragleave',e=>{ if(!vid.contains(e.relatedTarget)) vid.classList.remove('drag'); });
 vid.addEventListener('drop',e=>{ e.preventDefault(); vid.classList.remove('drag'); addVideos(e.dataTransfer.files); });
+
+/* ---------- menu PDF: tách ảnh món, gán tên món ---------- */
+/*menu-core*/
+// Khung NHÌN THẤY của từng ảnh trên trang (điểm PDF, gốc trên-trái). Ảnh trong menu thường to hơn khung
+// và bị cắt bằng clip, nên phải theo cả ma trận lẫn vùng clip qua danh sách lệnh vẽ của pdf.js.
+function menuFrames(ol, vp, OPS, Util){
+  const box=(m,a,b,c,d)=>{ const p=[[a,b],[c,b],[a,d],[c,d]].map(q=>Util.applyTransform(q,m)),
+    xs=p.map(q=>q[0]), ys=p.map(q=>q[1]); return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]; };
+  const cut=(a,b)=>[Math.max(a[0],b[0]),Math.max(a[1],b[1]),Math.min(a[2],b[2]),Math.min(a[3],b[3])];
+  let ctm=vp.transform, clip=[0,0,vp.width,vp.height], path=null; const st=[], out=[];
+  ol.fnArray.forEach((fn,i)=>{ const a=ol.argsArray[i];
+    if(fn===OPS.save) st.push([ctm,clip]);
+    else if(fn===OPS.restore||fn===OPS.paintFormXObjectEnd){ if(st.length) [ctm,clip]=st.pop(); }
+    else if(fn===OPS.transform) ctm=Util.transform(ctm,a);
+    else if(fn===OPS.constructPath) path=a[2]&&box(ctm,...a[2]);
+    else if(fn===OPS.clip||fn===OPS.eoClip){ if(path) clip=cut(clip,path); }
+    else if(fn===OPS.paintFormXObjectBegin){ st.push([ctm,clip]);
+      if(a[0]) ctm=Util.transform(ctm,a[0]); if(a[1]) clip=cut(clip,box(ctm,...a[1])); }
+    else if(fn===OPS.paintImageXObject){
+      const b=cut(box(ctm,0,0,1,1),clip), w=b[2]-b[0], h=b[3]-b[1];
+      // bỏ icon, ảnh bị che hết (w,h âm), và ảnh nền phủ gần kín trang
+      if(w>=60 && h>=60 && w*h<.6*vp.width*vp.height) out.push(b);
+    }
+  });
+  return out;
+}
+// Tiêu đề trang (= mục của menu): các dòng cỡ chữ lớn nhất, với điều kiện to hẳn (>=18pt) và chỉ 1-2 dòng.
+// Trang mà mọi chữ cùng cỡ (menu chỉ có tên món) thì không có tiêu đề.
+function menuHead(texts){
+  const T=texts.filter(t=>/\p{L}{2}/u.test(t.s)), big=Math.max(0,...T.map(t=>t.h)),   // giá tiền in to không phải tiêu đề
+        // PDF hay còn sót tiêu đề cũ bị che, nằm đè đúng chỗ tiêu đề thật: giữ dòng vẽ sau
+        top=T.filter((t,i)=>t.h>big-1 && !T.slice(i+1).some(u=>u.h>big-1 && Math.abs(u.y-t.y)<2 && Math.abs(u.x-t.x)<t.h));
+  return big>=18 && top.length<=2 ? top : [];
+}
+// Tên món của một khung ảnh: dòng chữ to nhất ngay dưới khung; không có thì dòng ngay bên phải.
+// Bỏ giá tiền và tiêu đề trang. Không chắc thì trả '' để người dùng tự điền.
+// shortcut: chỉ hợp menu có tên in dưới/phải ảnh; bố cục khác (tên phía trên, ảnh ghép) thì sửa tay trong ô tên.
+function menuName(b, texts){
+  const head=menuHead(texts),
+        T=texts.filter(t=>!head.includes(t) && /\p{L}{2}/u.test(t.s) && !/^[\d.,\s+đ₫kK]+$/.test(t.s));
+  const pick=c=>{ if(!c.length) return '';
+    const h=Math.max(...c.map(t=>t.h)), top=Math.min(...c.filter(t=>t.h>h-1).map(t=>t.y));
+    const s=c.filter(t=>t.h>h-1 && t.y-top<3.2*h).sort((p,q)=>p.y-q.y||p.x-q.x).map(t=>t.s.trim()).join(' ').replace(/\s+/g,' ');
+    return s.length>60 ? '' : s; };   // dài quá 60 ký tự là đoạn mô tả/quảng cáo, không phải tên món
+  return pick(T.filter(t=>t.y>b[3]-2 && t.y<b[3]+60 && t.x>b[0]-60 && t.x<b[2]-20))
+      || pick(T.filter(t=>t.y>b[1] && t.y<b[3] && t.x>=b[2]-2 && t.x<b[2]+260));
+}
+// JSON menu (khuôn schema_version 1: menus[].content.sections[].items[]) dựng thuần bằng vị trí chữ, không dùng AI.
+// Mỗi GIÁ là một cái neo: tên món là chữ cùng dòng bên trái giá (menu kiểu "TÊN ....... 290"), hoặc khối chữ ngay
+// phía trên giá trong cùng cột (menu xếp dọc). Dòng cỡ chữ nhỏ hơn ngay dưới tên là mô tả; tiêu đề to gần nhất
+// phía trên là tên mục. pages: [{texts:[{s,x,y,h}]}] theo thứ tự trang.
+// shortcut: món không ghi giá (set menu, danh sách đồ uống kèm) bị bỏ qua và mọi thứ gộp vào một menu a_la_carte;
+// set_menu / choose / terms / glass-bottle phải bổ sung tay hoặc bằng AI.
+function menuJson(pages, name){
+  const PRICE=/^(\d{1,3}(?:[.,]\d{3})+|\d{2,4})\s*(\+\+?|đ|₫|k|vnd|vnđ)?\.?$/i, isP=t=>PRICE.test(t.s.trim());
+  const join=a=>a.map(t=>t.s.trim()).join(' ').replace(/[.…]{3,}/g,' ').replace(/\s+/g,' ').replace(/^[|\s]+|[|\s]+$/g,'');
+  const upper=t=>t.s===t.s.toUpperCase();
+  const tight=s=>/^(\S )+\S$/.test(s) ? s.replace(/ /g,'') : s;   // "m a i n" -> "main"
+  const secs=new Map(); let priceNote='', last=name;
+  for(const {texts} of pages){
+    const T=texts.filter(t=>!/^[\s.…·_|–—-]+$/.test(t.s)), P=T.filter(isP), L=T.filter(t=>!isP(t) && /\p{L}/u.test(t.s));
+    if(!priceNote) priceNote=(T.find(t=>/\bVAT\b|phí phục vụ|service charge/i.test(t.s) && t.s.length<160)||{s:''}).s.trim();
+    const priced=t=>P.some(p=>Math.abs(p.y-t.y)<3 && p.x>t.x);
+    // dòng kế tiếp trong cùng cột, đi lên (d=-1) hay xuống (d=1), cách không quá `gap`, thoả điều kiện `ok`
+    const next=(a,y,d,gap,ok)=>L.filter(t=>Math.abs(t.x-a.x)<3 && (t.y-y)*d>1 && (t.y-y)*d<gap && ok(t)).sort((p,q)=>(p.y-q.y)*d)[0];
+    const head=menuHead(texts), pageSec=tight(join(head));
+    for(const p of P){
+      const prev=Math.max(-1,...P.filter(q=>q!==p && Math.abs(q.y-p.y)<3 && q.x<p.x).map(q=>q.x));
+      let nm=L.filter(t=>Math.abs(t.y-p.y)<3 && t.x<p.x && t.x>prev && !head.includes(t)).sort((a,b)=>a.x-b.x), note=[];
+      const a=nm[0]||p, same=t=>Math.abs(t.h-a.h)<.6 && !priced(t) && !head.includes(t);
+      if(nm.length){
+        for(let y=a.y,u; u=next(a,y,-1,1.35*a.h,same); y=u.y) nm.unshift(u);
+        let y=a.y; for(let u; u=next(a,y,1,1.35*a.h,same); y=u.y) nm.push(u);
+        for(let u; u=next(a,y,1,2*a.h,t=>t.h<a.h-.6); y=u.y) note.push(u);
+        // tên IN HOA mà các dòng cùng cỡ bên dưới viết thường: đó là mô tả, không phải phần tên
+        if(upper(nm[0])){ const k=nm.findIndex(t=>!upper(t)); if(k>0) note=[...nm.splice(k),...note]; }
+      }else{
+        let u=next(p,p.y,-1,3.5*p.h,t=>!head.includes(t));
+        for(; u; u=next(p,u.y,-1,1.6*p.h,t=>!priced(t) && !head.includes(t))) nm.unshift(u);
+        note=L.filter(t=>Math.abs(t.y-p.y)<4 && t.x>p.x && t.x<p.x+150 && t.h<p.h-.6);   // "(~100g)" in cạnh giá
+      }
+      if(!nm.length) continue;
+      // mục: tiêu đề (chữ to hơn tên món >= 25%) gần nhất phía trên; không có thì tiêu đề trang, rồi mục trước đó
+      // (chữ cỡ lưng chừng, nhỏ hơn hẳn tiêu đề trang, thường là nhãn trang trí nên không tính)
+      const hmin=Math.max(1.25*a.h, head.length ? .8*head[0].h : 0),
+            h=L.filter(t=>t.h>=hmin && t.y<nm[0].y).sort((p,q)=>q.y-p.y)[0];
+      last=(h && tight(join(L.filter(t=>Math.abs(t.h-h.h)<.6 && t.y<h.y+3 && h.y-t.y<1.6*h.h).sort((p,q)=>p.y-q.y||p.x-q.x)
+        .map(t=>({s:tight(t.s.trim())})))))
+        || pageSec || last;
+      const raw=p.s.trim(), v=+raw.replace(/\D/g,''), it={name:join(nm)};
+      if(note.length) it.note=join(note);
+      it.price = v<10000 ? v*1000 : v;   // menu cao cấp hay ghi giá theo nghìn đồng: "290" = 290.000
+      if(/\D/.test(raw.replace(/[.,]/g,'')) || v<10000) it.price_text=raw;
+      if(!secs.has(last)) secs.set(last,[]);
+      secs.get(last).push(it);
+    }
+  }
+  const content={sections:[...secs].map(([name,items])=>({name,items}))};
+  if(priceNote) content.price_note=priceNote;
+  return {schema_version:1, menus:[{name, type:'a_la_carte', source_url:null, content}]};
+}
+// Gói file thành zip không nén (JPEG nén sẵn rồi) để khỏi cần thư viện.
+// shortcut: không hỗ trợ ZIP64, tổng dưới 4 GB và dưới 65535 file; vượt thì đổi sang thư viện zip.
+const crcT=Array.from({length:256},(_,n)=>{ for(let k=0;k<8;k++) n=n&1?0xEDB88320^(n>>>1):n>>>1; return n>>>0; });
+const crc32=u=>{ let c=-1; for(let i=0;i<u.length;i++) c=crcT[(c^u[i])&255]^(c>>>8); return (c^-1)>>>0; };
+function zipStore(files){   // [{name, data:Uint8Array}]
+  const enc=new TextEncoder(), parts=[], cen=[]; let off=0;
+  for(const f of files){
+    const n=enc.encode(f.name), crc=crc32(f.data), len=f.data.length,
+          h=new DataView(new ArrayBuffer(30)), c=new DataView(new ArrayBuffer(46));
+    h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x800,true); h.setUint16(12,0x21,true);
+    h.setUint32(14,crc,true); h.setUint32(18,len,true); h.setUint32(22,len,true); h.setUint16(26,n.length,true);
+    c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true); c.setUint16(8,0x800,true);
+    c.setUint16(14,0x21,true); c.setUint32(16,crc,true); c.setUint32(20,len,true); c.setUint32(24,len,true);
+    c.setUint16(28,n.length,true); c.setUint32(42,off,true);
+    parts.push(h,n,f.data); cen.push(c,n); off+=30+n.length+len;
+  }
+  const e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true);
+  e.setUint32(12,cen.reduce((s,x)=>s+x.byteLength,0),true); e.setUint32(16,off,true);
+  return new Blob([...parts,...cen,e],{type:'application/zip'});
+}
+/*/menu-core*/
+// pdf.js chỉ nạp khi dùng tab này (thư viện ngoài duy nhất của trang); đổi bản thì chạy lại check-menu.mjs.
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/', MZ=3;   // MZ: độ phóng khi vẽ trang để cắt
+const mgrid=document.getElementById('mgrid'), mhint=document.getElementById('mhint'), mf=document.getElementById('mf'),
+      mall=document.getElementById('mall'), mdrop0=document.getElementById('mdrop0'), mdrop=document.getElementById('mdrop'),
+      msel=document.getElementById('msel'), mjson=document.getElementById('mjson');
+const slug=s=>s.replace(/đ/gi,'d').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()
+  .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+// Tên file (chưa có đuôi): p<trang>_<mục>_<tên món>, không dấu. Mục = tiêu đề to nhất của trang.
+// Ảnh chưa có tên thì dùng số thứ tự trong lưới.
+const mname=c=>c.querySelector('input[type=text]').value.trim();
+const mbase=c=>['p'+String(c.pn).padStart(2,'0'), slug(c.sec), slug(mname(c))||'anh-'+([...mgrid.children].indexOf(c)+1)]
+  .filter(Boolean).join('_');
+const mpicked=()=>[...mgrid.children].filter(c=>c.querySelector('.mck').checked);
+function mcount(){
+  const n=mpicked().length, all=mgrid.children.length;
+  mall.textContent='Tải '+n+' ảnh đã chọn'+(n>5?' (zip)':''); mall.disabled=!n;
+  msel.textContent = n===all ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
+  mall.hidden=msel.hidden=!all;
+}
+function menuCard(blob,pn,sec,name,w,h){
+  const c=document.createElement('div'); c.className='card'; c.pn=pn; c.sec=sec; c.blob=blob; c.size=w+'x'+h;
+  const ck=document.createElement('input'); ck.type='checkbox'; ck.className='mck'; ck.checked=true;
+  ck.title='Chọn ảnh này để tải'; ck.setAttribute('aria-label','Chọn ảnh, trang '+pn);
+  const box=document.createElement('div'); box.className='box';
+  const img=new Image(); img.alt=name; img.src=URL.createObjectURL(blob);
+  const st=document.createElement('div'); st.className='st dim'; st.textContent=w+'×'+h;
+  const no=document.createElement('div'); no.className='no'; no.textContent=pn; no.title='Trang '+pn;
+  box.append(img,st,no,ck);
+  const foot=document.createElement('div'); foot.className='foot';
+  const inp=document.createElement('input'); inp.type='text'; inp.value=name; inp.placeholder='Chưa rõ tên món…';
+  inp.setAttribute('aria-label','Tên món, trang '+pn);
+  const d=document.createElement('button'); d.className='x dl'; d.textContent='↓'; d.title='Tải ảnh này';
+  d.onclick=()=>saveBlob(blob,mbase(c)+'.jpg');
+  const x=document.createElement('button'); x.className='x'; x.textContent='×'; x.title='Bỏ ảnh này';
+  x.onclick=()=>{ URL.revokeObjectURL(img.src); c.remove(); mcount(); };
+  foot.append(inp,d,x); c.append(box,foot); return c;
+}
+let mrun=0, mpdf='menu', mjs=null;   // mrun: chọn file mới giữa chừng thì lượt cũ tự dừng; mpdf: tên PDF, dùng đặt tên zip
+async function menuPdf(file){
+  if(!file) return;
+  const run=++mrun; mgrid.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
+  mgrid.replaceChildren(); mall.hidden=msel.hidden=mdrop0.hidden=mjson.hidden=true; mjs=null;
+  mpdf=slug((file.name||'').replace(/\.pdf$/i,''))||'menu';
+  try{
+    mhint.textContent='Đang nạp bộ đọc PDF…';
+    const pdfjs=await import(PDFJS+'pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.mjs';
+    const doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+    // Lượt 1: đọc chữ mọi trang để nhận ra chân trang (hotline, website…) = dòng lặp lại trên quá nửa số trang;
+    // không bỏ thì ảnh nằm sát đáy trang bị gán tên là dòng đó.
+    const TX=[], seen=new Map();
+    for(let pn=1; pn<=doc.numPages; pn++){
+      const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
+      TX[pn]=(await page.getTextContent()).items.filter(t=>t.str.trim()).map(t=>{
+        const m=pdfjs.Util.transform(vp.transform,t.transform); return {s:t.str,x:m[4],y:m[5],h:Math.hypot(m[2],m[3])}; });
+      new Set(TX[pn].map(t=>t.s.trim())).forEach(s=>seen.set(s,(seen.get(s)||0)+1));
+    }
+    const keep=t=>seen.get(t.s.trim())<=Math.max(2,doc.numPages/2);
+    if(run!==mrun) return;
+    mjs=menuJson(TX.slice(1).map(t=>({texts:t.filter(keep)})), (file.name||'Menu').replace(/\.pdf$/i,''));
+    const items=mjs.menus[0].content.sections.reduce((n,x)=>n+x.items.length,0);
+    mjson.textContent='Tải JSON menu ('+items+' món)'; mjson.hidden=!items;
+    let named=0;
+    for(let pn=1; pn<=doc.numPages; pn++){
+      if(run!==mrun) return;
+      mhint.textContent='Đang đọc trang '+pn+'/'+doc.numPages+'…';
+      const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
+      const fr=menuFrames(await page.getOperatorList(),vp,pdfjs.OPS,pdfjs.Util);
+      if(!fr.length) continue;
+      const texts=TX[pn].filter(keep);
+      const sec=menuHead(texts).map(t=>t.s.trim()).join(' ');
+      const v=page.getViewport({scale:MZ}), cv=document.createElement('canvas');
+      cv.width=v.width; cv.height=v.height;
+      await page.render({canvasContext:cv.getContext('2d'),viewport:v}).promise;
+      for(const b of fr){
+        // lùi vào 1pt mỗi cạnh để không dính viền khung / nền trang
+        const x=Math.round((b[0]+1)*MZ), y=Math.round((b[1]+1)*MZ), w=Math.round((b[2]-b[0]-2)*MZ), h=Math.round((b[3]-b[1]-2)*MZ);
+        const c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(cv,x,y,w,h,0,0,w,h);
+        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9)), name=menuName(b,texts);
+        if(run!==mrun) return;
+        if(name) named++;
+        mgrid.append(menuCard(blob,pn,sec,name,w,h));
+      }
+    }
+    const n=mgrid.children.length;
+    mhint.textContent = n ? n+' ảnh, '+named+' ảnh tự nhận được tên món. Rà lại tên trước khi tải; ảnh ghép, ảnh trang trí thì bỏ tích.'
+      : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
+    if(items) mhint.textContent+=' JSON menu: '+items+' món có giá, '+mjs.menus[0].content.sections.length+' mục.';
+    mcount(); mdrop0.hidden=n===named;
+  }catch(e){ if(run===mrun) mhint.textContent='Không đọc được file PDF này ('+e.message+').'; }
+}
+document.getElementById('mpick').onclick=()=>mf.click();
+mf.onchange=()=>{ menuPdf(mf.files[0]); mf.value=''; };
+mdrop.addEventListener('dragover',e=>{ e.preventDefault(); mdrop.classList.add('drag'); });
+mdrop.addEventListener('dragleave',e=>{ if(!mdrop.contains(e.relatedTarget)) mdrop.classList.remove('drag'); });
+mdrop.addEventListener('drop',e=>{ e.preventDefault(); mdrop.classList.remove('drag');
+  menuPdf([...e.dataTransfer.files].find(f=>/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name))); });
+mjson.onclick=()=>saveBlob(new Blob([JSON.stringify(mjs,null,2)],{type:'application/json'}),mpdf+'_menu.json');
+mgrid.addEventListener('change',e=>{ if(e.target.className==='mck') mcount(); });
+msel.onclick=()=>{ const on=mpicked().length!==mgrid.children.length;
+  mgrid.querySelectorAll('.mck').forEach(k=>k.checked=on); mcount(); };
+mdrop0.onclick=()=>{ [...mgrid.children].forEach(c=>{ if(!mname(c)) c.querySelector('.mck').checked=false; }); mcount(); };
+mall.onclick=async()=>{
+  const cs=mpicked(), seen=new Set();
+  // trùng tên (cùng trang, cùng món) thì thêm -2, -3 để không đè nhau
+  const names=cs.map(c=>{ const b=mbase(c); let n=b, i=2; while(seen.has(n)) n=b+'-'+i++; seen.add(n); return n+'.jpg'; });
+  mall.disabled=true;
+  if(cs.length>5){
+    const q=t=>'"'+t.replace(/"/g,'""')+'"', files=[]; let csv='\ufefffile,muc,mon,trang_pdf,kich_thuoc\r\n';
+    for(let i=0;i<cs.length;i++){
+      files.push({name:names[i],data:new Uint8Array(await cs[i].blob.arrayBuffer())});
+      csv+=[names[i],q(cs[i].sec),q(mname(cs[i])),cs[i].pn,cs[i].size].join(',')+'\r\n';
+    }
+    files.push({name:'_danh_sach_anh.csv',data:new TextEncoder().encode(csv)});
+    if(mjs) files.push({name:mpdf+'_menu.json',data:new TextEncoder().encode(JSON.stringify(mjs,null,2))});
+    saveBlob(zipStore(files),mpdf+'_anh-mon.zip');
+  }else for(let i=0;i<cs.length;i++){
+    saveBlob(cs[i].blob,names[i]);
+    await new Promise(r=>setTimeout(r,400));   // tải dồn dập thì trình duyệt bỏ bớt file
+  }
+  mcount();
+};
 
 /* ---------- tải video TikTok / Facebook / YouTube / Instagram từ link Chia sẻ ---------- */
 const dl=document.getElementById('dl'), dlOut=document.getElementById('dlOut'), fbHelp=document.getElementById('fbHelp');

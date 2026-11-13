@@ -61,6 +61,35 @@ Dùng API công khai của [gis.vn](https://gis.vn/api) (`vn2000.vn/api/location
 
 Đây là phần **duy nhất** cần mạng. Phần xem ảnh chạy hoàn toàn cục bộ.
 
+## Tách ảnh món từ menu PDF
+
+Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng ảnh món và điền sẵn tên món.
+
+- Khung ảnh lấy từ chính lệnh vẽ trong PDF (vị trí ảnh giao với vùng clip), nên cắt đúng mép khung, không lẫn chữ hay nền.
+  Bỏ qua icon, ảnh bị che hết và ảnh nền kín trang.
+- Tên món = dòng chữ to nhất in ngay dưới ảnh, không có thì dòng ngay bên phải; bỏ giá tiền và tiêu đề trang.
+  Dòng lặp lại trên quá nửa số trang (hotline, website ở chân trang) và đoạn dài quá 60 ký tự cũng bị loại.
+  Không chắc thì để trống — sửa/điền trong ô dưới ảnh.
+- **Chọn ảnh để tải**: mỗi ảnh có ô tích (mặc định tích hết). **Bỏ chọn tất cả / Chọn tất cả** và
+  **Bỏ chọn ảnh chưa có tên** (ảnh ghép, ảnh trang trí) để lọc nhanh. Nút **Tải N ảnh đã chọn**: từ 6 ảnh trở lên
+  gói thành `<tên file pdf>_anh-mon.zip` kèm `_danh_sach_anh.csv` (file, mục, món có dấu, trang, kích thước);
+  5 ảnh trở xuống tải từng file. Nút `↓` dưới ảnh tải riêng ảnh đó.
+- Tên file: `p<trang>_<mục>_<tên món>.jpg`, không dấu (ví dụ `p23_pizza_pizza-hai-san.jpg`). Mục là tiêu đề to nhất
+  của trang, trang không có tiêu đề thì bỏ phần này; ảnh chưa có tên là `p07_set-viet_anh-31.jpg`; trùng tên thì thêm `-2`.
+- **Tải JSON menu** (không dùng AI): xuất `<tên pdf>_menu.json` theo khuôn `{schema_version:1, menus:[{name, type, source_url,
+  content:{sections:[{name, items:[{name, note, price, price_text}]}], price_note}}]}`. Mỗi giá là một cái neo: tên món là chữ
+  cùng dòng bên trái giá, hoặc khối chữ ngay trên giá trong cùng cột; dòng cỡ nhỏ hơn bên dưới là mô tả; tiêu đề to gần nhất
+  phía trên là mục. Giá dưới 10.000 hiểu là nghìn đồng (`290` → 290000, giữ nguyên bản trong `price_text`).
+  Giới hạn: món không ghi giá bị bỏ qua (set menu, đồ uống kèm), mọi thứ gộp vào một menu `a_la_carte`, không tự tách
+  `set_menu`/`choose`/`terms`/ly-chai; menu nhiều cột sát nhau có thể dính chữ cột bên; trang lỗi font ra chữ rác. Luôn rà lại.
+  Đã thử: Anantara Sea.Fire.Salt 46 món/9 mục, Zannier Nhà Ở 44/4, Café Cardinal 19/5, Lá Kitchen 59/9,
+  Gyu-Kaku Grand Menu 108/22 (thiếu nhiều), Gyu-Kaku Buffet 0 (giá không ở dạng chữ đọc được).
+- Đã thử trên 3 menu thật: Lá Kitchen (28 trang, 90 ảnh, 59 có tên), Gyu-Kaku Buffet (30 trang, 45 ảnh, 30 có tên),
+  Gyu-Kaku Grand Menu (64 trang, 300 MB, 140 ảnh, 104 có tên, ~65 giây). Trang PDF bị lỗi font thì tên ra chữ rác, phải gõ lại.
+- Chỉ dùng được với PDF xuất từ phần mềm thiết kế (có lớp chữ, ảnh là đối tượng riêng). PDF scan thì không tách được.
+- Chạy hoàn toàn trong trình duyệt; lần đầu mở tab cần mạng để nạp pdf.js từ cdnjs (thư viện ngoài duy nhất của trang).
+- Tự kiểm phần lõi: `node check-menu.mjs`.
+
 ## Tải video TikTok / Facebook / YouTube / Instagram / Google Maps
 
 Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải từ link* ở tab **Video**, nhấn **Tải** (hoặc Enter).
