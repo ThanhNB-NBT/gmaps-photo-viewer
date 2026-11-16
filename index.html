@@ -435,8 +435,8 @@
 <section data-tab="guide" class="guide" hidden>
 <p class="eyebrow">Chú giải</p>
 <h2>Trang này làm được gì</h2>
-<p class="lead">Bốn công cụ trong một file HTML: không cài đặt, không tài khoản. Mỗi công cụ đều bắt đầu
-  bằng việc dán một đường link.</p>
+<p class="lead">Năm công cụ trong một file HTML: không cài đặt, không tài khoản. Mỗi công cụ bắt đầu
+  bằng việc dán một đường link hoặc chọn file.</p>
 
 <div class="legend">
 <article class="lg">
@@ -527,6 +527,30 @@
   </ul>
   <a class="go" href="#video">Mở Video</a>
 </article>
+
+<article class="lg">
+  <h3><span class="pin" aria-hidden="true">5</span>Cắt ảnh món từ menu PDF</h3>
+  <p>Đưa vào file menu PDF, trang cắt ra ảnh từng món kèm tên món in cạnh ảnh, để tải về hoặc gửi link.</p>
+  <h4>Cách làm</h4>
+  <ol>
+    <li>Sang tab Menu PDF, bấm <b>Chọn file PDF…</b>, kéo thả file vào khung, hoặc dán link PDF rồi bấm <b>Mở link</b>.</li>
+    <li>Rà tên món trong ô dưới mỗi ảnh, sửa chỗ sai. Bỏ tích ảnh trang trí, ảnh ghép nhiều món.</li>
+    <li>Bấm <b>Tải … ảnh đã chọn</b> (từ 6 ảnh gói thành zip kèm bảng kê CSV) hoặc <b>Tạo link 7 ngày</b>.</li>
+  </ol>
+  <h4>Còn làm được</h4>
+  <ul>
+    <li><b>Bỏ chọn ảnh chưa có tên</b>: loại nhanh ảnh trang trí.</li>
+    <li><b>Tải JSON menu</b>: mục, tên món, mô tả và giá đọc từ chữ trong PDF, không dùng AI.</li>
+    <li><b>Tạo link 7 ngày</b>: mỗi ảnh ra một link công khai, hết hạn sau 7 ngày. Cần khoá máy chủ ảnh.</li>
+    <li><b>Copy prompt làm nét</b>: với ảnh ghi “mờ”, dán prompt kèm ảnh vào Gemini hoặc ChatGPT để AI làm nét.</li>
+  </ul>
+  <h4>Lưu ý</h4>
+  <ul>
+    <li>Chỉ đọc được PDF có chữ thật. Menu scan thành ảnh thì không có tên món, không có JSON.</li>
+    <li>Nhiều website chặn trang khác đọc file: trang báo một dòng, bạn mở link ở tab mới, tải PDF về rồi chọn file.</li>
+  </ul>
+  <a class="go" href="#menu">Mở Menu PDF</a>
+</article>
 </div>
 
 <div class="notes">
@@ -539,16 +563,17 @@
   <div>
     <h3>Dữ liệu của bạn đi đâu</h3>
     <ul>
-      <li>Xem ảnh và xem video trong máy chạy hoàn toàn trong trình duyệt.</li>
+      <li>Xem ảnh, xem video trong máy và đọc menu PDF chạy hoàn toàn trong trình duyệt.</li>
       <li>Tra địa chỉ gửi toạ độ tới gis.vn.</li>
       <li>Tải video gửi đường link tới tikwm.com (TikTok) hoặc máy chủ chuyển tiếp của trang; không nơi nào lưu lại.</li>
-      <li>Trình duyệt chỉ nhớ hai thứ: chế độ sáng/tối và token gis.vn.</li>
+      <li>Ảnh menu chỉ lên máy chủ của trang khi bạn bấm Tạo link, và tự xoá sau 7 ngày.</li>
+      <li>Trình duyệt chỉ nhớ ba thứ: chế độ sáng/tối, token gis.vn và khoá máy chủ ảnh (nếu bạn nhập).</li>
     </ul>
   </div>
   <div>
     <h3>Mẹo</h3>
     <ul>
-      <li>Tab nằm trên địa chỉ trang, nên gửi link kèm <code>#video</code> hay <code>#guide</code> là người nhận mở đúng tab.</li>
+      <li>Tab nằm trên địa chỉ trang, nên gửi link kèm <code>#video</code>, <code>#menu</code> hay <code>#guide</code> là người nhận mở đúng tab.</li>
       <li>Nút ở góc phải đổi giao diện sáng/tối; không chọn thì theo máy.</li>
     </ul>
   </div>
