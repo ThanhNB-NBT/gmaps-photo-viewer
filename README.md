@@ -66,14 +66,27 @@ Dùng API công khai của [gis.vn](https://gis.vn/api) (`vn2000.vn/api/location
 Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng ảnh món và điền sẵn tên món.
 
 - Khung ảnh lấy từ chính lệnh vẽ trong PDF (vị trí ảnh giao với vùng clip), nên cắt đúng mép khung, không lẫn chữ hay nền.
-  Bỏ qua icon, ảnh bị che hết và ảnh nền kín trang.
-- Tên món = dòng chữ to nhất in ngay dưới ảnh, không có thì dòng ngay bên phải; bỏ giá tiền và tiêu đề trang.
+  Bỏ qua icon, ảnh bị che hết và ảnh nền kín trang (trừ trang không có chữ nào — trang chỉ in một ảnh món; bìa cũng
+  lọt vào, bỏ chọn tay). Ảnh vẽ trùng hai lần giữ một; từ 4 mảnh khít nhau trở lên (hình trang trí bị cắt thành lưới ô)
+  gộp thành một khung; khung bị chữ phủ quá 8% diện tích là tấm nền sau đoạn văn, bỏ.
+- Tên món, thử lần lượt: ảnh có số in đè (`23`) thì lấy món đánh số `23. …` trên trang; tên in đè trong ảnh mà chữ to hơn
+  dòng dưới ảnh; dòng chữ to nhất in ngay dưới ảnh; nhãn gần ảnh nhất (trên, trái hoặc in đè lên ảnh, trong
+  40pt, bỏ qua dòng thuộc món có giá ở cột bên); không có nữa thì dòng ngay bên phải. Bỏ giá tiền và tiêu đề trang.
+  Mảnh chữ Việt pdf.js tách rời (`B`,`ò`) mà sát nhau thì nối liền, không chèn dấu cách.
+  Tên in hoa thì dừng ở dòng mô tả cùng cỡ chữ; bỏ số thứ tự `23.` và giá `— 280` dính ở đầu/cuối. Giá dạng `VND 220`,
+  `$90`, `500/100gr`, tên mục `MEAT - CÁC MÓN THỊT` và chữ chạy theo đường cong bị vỡ (`T U HT`) không lấy làm tên.
   Dòng lặp lại trên quá nửa số trang (hotline, website ở chân trang) và đoạn dài quá 60 ký tự cũng bị loại.
   Không chắc thì để trống — sửa/điền trong ô dưới ảnh.
 - **Chọn ảnh để tải**: mỗi ảnh có ô tích (mặc định tích hết). **Bỏ chọn tất cả / Chọn tất cả** và
   **Bỏ chọn ảnh chưa có tên** (ảnh ghép, ảnh trang trí) để lọc nhanh. Nút **Tải N ảnh đã chọn**: từ 6 ảnh trở lên
   gói thành `<tên file pdf>_anh-mon.zip` kèm `_danh_sach_anh.csv` (file, mục, món có dấu, trang, kích thước);
   5 ảnh trở xuống tải từng file. Nút `↓` dưới ảnh tải riêng ảnh đó.
+- **Tạo link 7 ngày**: tải ảnh đã chọn lên [`fbrelay.py`](fbrelay.py) trên máy nhà (`POST /up`, cần khoá
+  `FB_RELAY_KEY` — dán vào ô *Khoá máy chủ ảnh*, chỉ lưu trong trình duyệt). Mỗi ảnh ra link công khai
+  `https://fbx.120203.xyz/i/<mã ngẫu nhiên>-<tên file>.jpg` để đưa cho CDN/bên thứ 3; link hiện dưới ảnh (bấm để copy),
+  cả danh sách `tên món<tab>link` được copy sẵn, CSV trong zip có thêm cột `link`. Sau 7 ngày link trả 404 và file bị xoá
+  (`Cache-Control: max-age` = thời gian còn sống nên CDN cũng không giữ quá hạn). Mỗi ảnh ≤ 10 MB, chỉ JPEG,
+  tổng thư mục `~/fbrelay/img` ≤ 2 GB.
 - Tên file: `p<trang>_<mục>_<tên món>.jpg`, không dấu (ví dụ `p23_pizza_pizza-hai-san.jpg`). Mục là tiêu đề to nhất
   của trang, trang không có tiêu đề thì bỏ phần này; ảnh chưa có tên là `p07_set-viet_anh-31.jpg`; trùng tên thì thêm `-2`.
 - **Tải JSON menu** (không dùng AI): xuất `<tên pdf>_menu.json` theo khuôn `{schema_version:1, menus:[{name, type, source_url,
@@ -86,8 +99,13 @@ Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng �
   Gyu-Kaku Grand Menu 108/22 (thiếu nhiều), Gyu-Kaku Buffet 0 (giá không ở dạng chữ đọc được).
 - Đã thử trên 3 menu thật: Lá Kitchen (28 trang, 90 ảnh, 59 có tên), Gyu-Kaku Buffet (30 trang, 45 ảnh, 30 có tên),
   Gyu-Kaku Grand Menu (64 trang, 300 MB, 140 ảnh, 104 có tên, ~65 giây). Trang PDF bị lỗi font thì tên ra chữ rác, phải gõ lại.
+  Lượt 16/11 (ảnh / có tên, trước → sau): Le Jardin 35/22 → 14/14 (bỏ tấm nền và ảnh trùng, tên đúng hết), Bao Cancún 57/21
+  → 6/5 (lá trang trí cắt lưới ô), KOSHIMA 31/18 → 32/21, Indigo đọc được tên in đè, InterContinental Hà Nội bỏ hết tên
+  rác `VND 220` (caption dưới ảnh là chữ dạng đường vẽ, không đọc được). Menu nhiều món chung một ảnh nền (Long Triều
+  Dimsum) thì không tách được.
 - Chỉ dùng được với PDF xuất từ phần mềm thiết kế (có lớp chữ, ảnh là đối tượng riêng). PDF scan thì không tách được.
-- Chạy hoàn toàn trong trình duyệt; lần đầu mở tab cần mạng để nạp pdf.js từ cdnjs (thư viện ngoài duy nhất của trang).
+- Chạy hoàn toàn trong trình duyệt (trừ nút Tạo link); lần đầu mở tab cần mạng để nạp pdf.js từ cdnjs (thư viện ngoài
+  duy nhất của trang).
 - Tự kiểm phần lõi: `node check-menu.mjs`.
 
 ## Tải video TikTok / Facebook / YouTube / Instagram / Google Maps

@@ -379,16 +379,24 @@
     Tên nào sai hay còn trống thì sửa ngay trong ô dưới ảnh. Bỏ tích ảnh không cần rồi tải: từ 6 ảnh trở lên gói
     thành một file zip kèm bảng kê CSV. Tên file gồm số trang, mục và tên món
     (<code>p23_pizza_pizza-hai-san.jpg</code>). Nút <b>Tải JSON menu</b> xuất mục, tên món, mô tả và giá đọc được
-    từ chữ trong PDF (không dùng AI, cần rà lại). Xử lý ngay trong trình duyệt, file không tải lên đâu cả.</p>
+    từ chữ trong PDF (không dùng AI, cần rà lại). Xử lý ngay trong trình duyệt, file PDF không tải lên đâu cả.
+    Riêng nút <b>Tạo link 7 ngày</b> tải ảnh đã chọn lên máy chủ riêng, mỗi ảnh ra một link công khai
+    (đưa cho CDN hay bên thứ 3) và tự xoá sau 7 ngày.</p>
   <div class="bar">
     <button id="mpick" class="pri">Chọn file PDF…</button>
     <input type="file" id="mf" accept="application/pdf" hidden>
     <button id="mall" hidden></button>
+    <button id="mup" hidden></button>
     <button id="msel" hidden></button>
     <button id="mdrop0" hidden>Bỏ chọn ảnh chưa có tên</button>
     <button id="mjson" hidden></button>
   </div>
   <p class="hint" id="mhint" aria-live="polite">Kéo thả file PDF vào khung này cũng được.</p>
+  <details class="tok" id="mkeyd">
+    <summary>Khoá máy chủ ảnh (để tạo link)</summary>
+    <div class="row"><input type="password" id="mkey" spellcheck="false" autocomplete="off" aria-label="Khoá máy chủ ảnh"></div>
+    <p>Chỉ cần cho nút Tạo link 7 ngày. Khoá lưu trong trình duyệt này, không nằm trong trang.</p>
+  </details>
 </div>
 <div class="grid" id="mgrid"></div>
 </section>
@@ -929,7 +937,9 @@ vid.addEventListener('drop',e=>{ e.preventDefault(); vid.classList.remove('drag'
 /*menu-core*/
 // Khung NHÌN THẤY của từng ảnh trên trang (điểm PDF, gốc trên-trái). Ảnh trong menu thường to hơn khung
 // và bị cắt bằng clip, nên phải theo cả ma trận lẫn vùng clip qua danh sách lệnh vẽ của pdf.js.
-function menuFrames(ol, vp, OPS, Util){
+// texts (tuỳ chọn, chữ của trang): trang không có chữ nào thì giữ cả ảnh phủ kín trang (trang chỉ in một ảnh món);
+// bỏ khung bị chữ phủ dày (tấm nền mờ sau đoạn chữ, không phải ảnh món).
+function menuFrames(ol, vp, OPS, Util, texts){
   const box=(m,a,b,c,d)=>{ const p=[[a,b],[c,b],[a,d],[c,d]].map(q=>Util.applyTransform(q,m)),
     xs=p.map(q=>q[0]), ys=p.map(q=>q[1]); return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]; };
   const cut=(a,b)=>[Math.max(a[0],b[0]),Math.max(a[1],b[1]),Math.min(a[2],b[2]),Math.min(a[3],b[3])];
@@ -945,10 +955,27 @@ function menuFrames(ol, vp, OPS, Util){
     else if(fn===OPS.paintImageXObject){
       const b=cut(box(ctm,0,0,1,1),clip), w=b[2]-b[0], h=b[3]-b[1];
       // bỏ icon, ảnh bị che hết (w,h âm), và ảnh nền phủ gần kín trang
-      if(w>=60 && h>=60 && w*h<.6*vp.width*vp.height) out.push(b);
+      if(w>=60 && h>=60 && (w*h<.6*vp.width*vp.height || texts && !texts.length)) out.push(b);
     }
   });
-  return out;
+  // Vẽ trùng một chỗ (IoU > 0.9) thì giữ một. Từ 4 mảnh trở lên nối nhau bằng mép (khít hoặc chờm < 5%) là một hình
+  // bị cắt thành lưới ô (hình nền xuất từ Illustrator) -> một khung bao. 2-3 ảnh khít nhau vẫn để riêng (ảnh món xếp
+  // sát); ảnh chồng hẳn lên tấm nền thì không tính là nối, để tấm nền bị lọc riêng ở dưới.
+  const area=a=>Math.max(0,a[2]-a[0])*Math.max(0,a[3]-a[1]), iou=(a,c)=>{ const i=area(cut(a,c)); return i/(area(a)+area(c)-i); },
+        U=out.filter((a,i)=>!out.slice(0,i).some(c=>iou(a,c)>.9)),
+        edge=(a,c)=>a[0]<=c[2]+1 && c[0]<=a[2]+1 && a[1]<=c[3]+1 && c[1]<=a[3]+1 && area(cut(a,c))<.05*Math.min(area(a),area(c)),
+        seen=new Set(), res=[];
+  U.forEach((a,i)=>{ if(seen.has(i)) return;
+    const g=[i]; seen.add(i);
+    for(let k=0;k<g.length;k++) U.forEach((c,j)=>{ if(!seen.has(j) && edge(U[g[k]],c)){ seen.add(j); g.push(j); } });
+    const bs=g.sort((p,q)=>p-q).map(j=>U[j]);
+    if(bs.length>=4) res.push([0,1,2,3].map(k=>(k<2?Math.min:Math.max)(...bs.map(c=>c[k]))));
+    else res.push(...bs);
+  });
+  if(!texts) return res;
+  // chữ phủ > 8% diện tích khung là tấm nền sau đoạn văn (đo: tấm nền 9-24%, ảnh món có chữ in đè <= 5%)
+  const inb=(b,t)=>{ const x=t.x+(t.w??.55*t.h*t.s.length)/2, y=t.y-t.h/2; return x>b[0]+2 && x<b[2]-2 && y>b[1]+2 && y<b[3]-2; };
+  return res.filter(b=>texts.filter(t=>inb(b,t)).reduce((n,t)=>n+(t.w??.55*t.h*t.s.length)*t.h,0)<.08*area(b));
 }
 // Tiêu đề trang (= mục của menu): các dòng cỡ chữ lớn nhất, với điều kiện to hẳn (>=18pt) và chỉ 1-2 dòng.
 // Trang mà mọi chữ cùng cỡ (menu chỉ có tên món) thì không có tiêu đề.
@@ -958,17 +985,61 @@ function menuHead(texts){
         top=T.filter((t,i)=>t.h>big-1 && !T.slice(i+1).some(u=>u.h>big-1 && Math.abs(u.y-t.y)<2 && Math.abs(u.x-t.x)<t.h));
   return big>=18 && top.length<=2 ? top : [];
 }
-// Tên món của một khung ảnh: dòng chữ to nhất ngay dưới khung; không có thì dòng ngay bên phải.
+// Nối các mảnh chữ (đã xếp theo dòng) thành chuỗi. pdf.js hay cắt chữ Việt thành mảnh sát nhau ("B","ò"):
+// mảnh bắt đầu ngay mép phải mảnh trước cùng dòng thì dính liền, còn lại cách một dấu cách.
+const cat=a=>a.reduce((s,t,i)=>{ const p=a[i-1];
+  return s+(p && !(Math.abs(p.y-t.y)<1 && p.w!=null && t.x-p.x-p.w<.2*t.h) ? ' ' : '')+t.s; },'').replace(/\s+/g,' ').trim();
+// Tên món của một khung ảnh, thử lần lượt: dòng chữ to nhất ngay dưới khung; nhãn nhỏ sát khung ở phía nào cũng
+// được (trên, trái, đè lên ảnh) trừ dòng thuộc danh sách món có giá (`used`, do menuJson đánh dấu); dòng bên phải.
 // Bỏ giá tiền và tiêu đề trang. Không chắc thì trả '' để người dùng tự điền.
-// shortcut: chỉ hợp menu có tên in dưới/phải ảnh; bố cục khác (tên phía trên, ảnh ghép) thì sửa tay trong ô tên.
-function menuName(b, texts){
-  const head=menuHead(texts),
-        T=texts.filter(t=>!head.includes(t) && /\p{L}{2}/u.test(t.s) && !/^[\d.,\s+đ₫kK]+$/.test(t.s));
+// shortcut: ảnh ghép nhiều món hay nhãn cách ảnh quá 40pt thì sửa tay trong ô tên.
+function menuName(b, texts, used=new Set()){
+  const head=menuHead(texts),   // giá: "185.000++", "— 380", "VND 220", "$90", "VND 500/100gr"
+        PRICE=/^[\s—–~$€£¥-]*(VNĐ|VND|USD)?\s*\d[\d.,\s+]*(k|đ|₫|VNĐ|VND|USD)?(\s*\/\s*\d*\s*\p{L}{0,3})?\s*$/iu,
+        // tên mục song ngữ in hoa "MEAT - CÁC MÓN THỊT" (cỡ chữ nhỏ hơn tiêu đề trang nên menuHead không bắt)
+        SEC=/^[\p{Lu}\s&,]+ [-–—] [\p{Lu}\s&,]+$/u,
+        T=texts.filter(t=>!head.includes(t) && /\p{L}/u.test(t.s) && !PRICE.test(t.s) && !SEC.test(t.s.trim()));
+  const up=s=>/\p{Lu}/u.test(s) && s===s.toUpperCase();
   const pick=c=>{ if(!c.length) return '';
     const h=Math.max(...c.map(t=>t.h)), top=Math.min(...c.filter(t=>t.h>h-1).map(t=>t.y));
-    const s=c.filter(t=>t.h>h-1 && t.y-top<3.2*h).sort((p,q)=>p.y-q.y||p.x-q.x).map(t=>t.s.trim()).join(' ').replace(/\s+/g,' ');
-    return s.length>60 ? '' : s; };   // dài quá 60 ký tự là đoạn mô tả/quảng cáo, không phải tên món
-  return pick(T.filter(t=>t.y>b[3]-2 && t.y<b[3]+60 && t.x>b[0]-60 && t.x<b[2]-20))
+    let a=c.filter((t,i)=>t.h>h-1 && t.y-top<3.2*h   // PDF hay in trùng một chữ chồng đúng chỗ: giữ một
+      && !c.slice(i+1).some(u=>u.s===t.s && Math.abs(u.x-t.x)<2 && Math.abs(u.y-t.y)<2)).sort((p,q)=>p.y-q.y||p.x-q.x);
+    // tên in hoa thì dừng ở dòng mô tả cùng cỡ chữ (không in hoa, >= 2 từ viết thường: "27. BÁNH MÌ" / "Vietnamese
+    // baguette with…"); dòng tên tiếng Anh viết hoa đầu từ ("COM TAM" / "Broken Rice Platter") vẫn giữ
+    const line=t=>a.filter(u=>Math.abs(u.y-t.y)<1).map(u=>u.s).join(' '),
+          desc=l=>!up(l) && (l.match(/(^|\s)\p{Ll}/gu)||[]).length>=2;
+    if(up(line(a[0]))){ const k=a.findIndex(t=>desc(line(t))); if(k>0) a=a.slice(0,k); }
+    const s=cat(a).replace(/^\d{1,3}[.)]\s+/,'').replace(/\s*[—–-]+\s*\d[\d.,]*\s*$/,''), w=s.split(' ');
+    // dài quá 60 ký tự là đoạn mô tả/quảng cáo; quá nửa là chữ cái lẻ ("T U HT") là chữ chạy theo đường cong bị vỡ
+    return s.length>60 || !/\p{L}{2}/u.test(s) || w.length>=3 && 2*w.filter(x=>x.length===1).length>w.length ? '' : s; };
+  const W=t=>t.w??.55*t.h*t.s.length,   // bề ngang mảnh chữ; thiếu thì ước theo số ký tự
+        inb=t=>{ const x=t.x+W(t)/2, y=t.y-t.h/2; return x>b[0]+2 && x<b[2]-2 && y>b[1]+2 && y<b[3]-2; },
+        // khoảng cách từ ô chữ (x..x+w, y-h..y) tới khung; 0 = chạm hoặc đè lên ảnh
+        gap=t=>Math.max(0,b[0]-t.x-W(t),t.x-b[2])+Math.max(0,b[1]-t.y,t.y-t.h-b[3]),
+        // lan từ các mảnh hạt giống sang mảnh kề: liền nhau cùng dòng, hoặc dòng sát trên/dưới thoả `col`
+        grow=(seed,pool,col)=>{ const s=new Set(seed);
+          for(const a of s) for(const t of pool) if(!s.has(t) && (Math.abs(t.y-a.y)<1 && (t.x>a.x ? t.x-a.x-W(a) : a.x-t.x-W(t))<2*t.h
+            || Math.abs(t.y-a.y)<1.6*Math.max(a.h,t.h) && col(a,t))) s.add(t);
+          return s; };
+  // dòng của món có giá kèm dòng sát trên/dưới cùng lề (menuJson có khi sót dòng tên tiếng thứ hai)
+  const own=grow(texts.filter(t=>used.has(t)),texts,(a,t)=>Math.abs(t.x-a.x)<3),
+        C=T.filter(t=>gap(t)<40 && !own.has(t)), mid=[(b[0]+b[2])/2,(b[1]+b[3])/2],
+        // gần khung nhất; đè lên ảnh (cùng = 0) thì gần tâm ảnh hơn. Tên món mở đầu bằng chữ hoa (hoặc chữ
+        // Hán/Nhật); chữ thường, số, ký hiệu đầu dòng là câu văn, ghi chú hay mảnh chữ.
+        t0=C.filter(t=>/^[\p{Lu}\p{Lt}\p{Lo}]/u.test(t.s.trim()))
+            .sort((p,q)=>gap(p)+.1*Math.hypot(p.x-mid[0],p.y-mid[1])-gap(q)-.1*Math.hypot(q.x-mid[0],q.y-mid[1]))[0];
+  // ảnh có số in đè (huy hiệu "23") trỏ về món đánh số "23. TÊN MÓN" trên trang
+  const no=texts.filter(t=>/^\d{1,3}$/.test(t.s.trim()) && inb(t)),
+        it=no.length===1 && texts.find(t=>new RegExp('^'+no[0].s.trim()+'[.)]\\s*\\p{L}','u').test(t.s.trim())),
+        below=T.filter(t=>t.y>b[3]-2 && t.y<b[3]+60 && t.x>b[0]-60 && t.x<b[2]-20),
+        ins=T.filter(inb), hm=a=>Math.max(0,...a.map(t=>t.h));
+  return (it ? pick([...grow([it],T.filter(t=>t.y>it.y-1 && t.y<it.y+3.2*it.h && t.x>it.x-5),(a,t)=>t.x<it.x+W(it)+20)]) : '')
+      // tên in đè trong ảnh, chữ to hơn dòng dưới ảnh (dưới thường là mô tả); quá 4 dòng là bảng giá in đè, không phải tên
+      || (hm(ins)>hm(below)+.5 && new Set(ins.map(t=>Math.round(t.y))).size<=4 ? pick(ins) : '')
+      || pick(below)
+      // cả khối nhãn chứa t0 (nhãn hay 2 tầng: tên to + tên dịch nhỏ hơn); pick lấy tầng chữ to nhất.
+      // Khối dài quá (đoạn văn giới thiệu) thì pick trả ''.
+      || (t0 ? pick([...grow([t0],C,(a,t)=>t.x<a.x+W(a)+2*a.h && t.x+W(t)>a.x-2*a.h)]) : '')
       || pick(T.filter(t=>t.y>b[1] && t.y<b[3] && t.x>=b[2]-2 && t.x<b[2]+260));
 }
 // JSON menu (khuôn schema_version 1: menus[].content.sections[].items[]) dựng thuần bằng vị trí chữ, không dùng AI.
@@ -977,9 +1048,10 @@ function menuName(b, texts){
 // phía trên là tên mục. pages: [{texts:[{s,x,y,h}]}] theo thứ tự trang.
 // shortcut: món không ghi giá (set menu, danh sách đồ uống kèm) bị bỏ qua và mọi thứ gộp vào một menu a_la_carte;
 // set_menu / choose / terms / glass-bottle phải bổ sung tay hoặc bằng AI.
-function menuJson(pages, name){
+// used (tuỳ chọn): Set nhận các mảnh chữ đã thành tên/mô tả món, để menuName không lấy nhầm làm nhãn ảnh.
+function menuJson(pages, name, used){
   const PRICE=/^(\d{1,3}(?:[.,]\d{3})+|\d{2,4})\s*(\+\+?|đ|₫|k|vnd|vnđ)?\.?$/i, isP=t=>PRICE.test(t.s.trim());
-  const join=a=>a.map(t=>t.s.trim()).join(' ').replace(/[.…]{3,}/g,' ').replace(/\s+/g,' ').replace(/^[|\s]+|[|\s]+$/g,'');
+  const join=a=>cat(a).replace(/[.…]{3,}/g,' ').replace(/\s+/g,' ').replace(/^[|\s]+|[|\s]+$/g,'');
   const upper=t=>t.s===t.s.toUpperCase();
   const tight=s=>/^(\S )+\S$/.test(s) ? s.replace(/ /g,'') : s;   // "m a i n" -> "main"
   const secs=new Map(); let priceNote='', last=name;
@@ -1006,6 +1078,7 @@ function menuJson(pages, name){
         note=L.filter(t=>Math.abs(t.y-p.y)<4 && t.x>p.x && t.x<p.x+150 && t.h<p.h-.6);   // "(~100g)" in cạnh giá
       }
       if(!nm.length) continue;
+      if(used) [...nm,...note].forEach(t=>used.add(t));
       // mục: tiêu đề (chữ to hơn tên món >= 25%) gần nhất phía trên; không có thì tiêu đề trang, rồi mục trước đó
       // (chữ cỡ lưng chừng, nhỏ hơn hẳn tiêu đề trang, thường là nhãn trang trí nên không tính)
       const hmin=Math.max(1.25*a.h, head.length ? .8*head[0].h : 0),
@@ -1051,7 +1124,12 @@ function zipStore(files){   // [{name, data:Uint8Array}]
 const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/', MZ=3;   // MZ: độ phóng khi vẽ trang để cắt
 const mgrid=document.getElementById('mgrid'), mhint=document.getElementById('mhint'), mf=document.getElementById('mf'),
       mall=document.getElementById('mall'), mdrop0=document.getElementById('mdrop0'), mdrop=document.getElementById('mdrop'),
-      msel=document.getElementById('msel'), mjson=document.getElementById('mjson');
+      msel=document.getElementById('msel'), mjson=document.getElementById('mjson'),
+      mup=document.getElementById('mup'), mkey=document.getElementById('mkey'), mkeyd=document.getElementById('mkeyd');
+// Máy chủ ảnh tạm = fbrelay.py trên máy nhà (POST /up, ảnh sống 7 ngày); khoá không nhúng vào trang vì trang công khai.
+const IMGUP='https://fbx.120203.xyz';
+try{ mkey.value=localStorage.getItem('gpv-imgkey')||''; }catch(e){}
+mkey.onchange=()=>{ try{ localStorage.setItem('gpv-imgkey',mkey.value.trim()); }catch(e){} };
 const slug=s=>s.replace(/đ/gi,'d').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()
   .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 // Tên file (chưa có đuôi): p<trang>_<mục>_<tên món>, không dấu. Mục = tiêu đề to nhất của trang.
@@ -1063,8 +1141,9 @@ const mpicked=()=>[...mgrid.children].filter(c=>c.querySelector('.mck').checked)
 function mcount(){
   const n=mpicked().length, all=mgrid.children.length;
   mall.textContent='Tải '+n+' ảnh đã chọn'+(n>5?' (zip)':''); mall.disabled=!n;
+  mup.textContent='Tạo link 7 ngày ('+n+')'; mup.disabled=!n;
   msel.textContent = n===all ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
-  mall.hidden=msel.hidden=!all;
+  mall.hidden=msel.hidden=mup.hidden=!all;
 }
 function menuCard(blob,pn,sec,name,w,h){
   const c=document.createElement('div'); c.className='card'; c.pn=pn; c.sec=sec; c.blob=blob; c.size=w+'x'+h;
@@ -1082,13 +1161,17 @@ function menuCard(blob,pn,sec,name,w,h){
   d.onclick=()=>saveBlob(blob,mbase(c)+'.jpg');
   const x=document.createElement('button'); x.className='x'; x.textContent='×'; x.title='Bỏ ảnh này';
   x.onclick=()=>{ URL.revokeObjectURL(img.src); c.remove(); mcount(); };
-  foot.append(inp,d,x); c.append(box,foot); return c;
+  foot.append(inp,d,x);
+  const l=c.lnk=document.createElement('div'); l.className='u'; l.hidden=true; l.title='Click để copy link';
+  l.onclick=()=>copy(c.link).then(ok=>{ l.classList.toggle('ok',ok); l.textContent=ok?'đã copy link':'copy không được';
+    setTimeout(()=>{ l.classList.remove('ok'); l.textContent=c.link; },900); });
+  c.append(box,foot,l); return c;
 }
 let mrun=0, mpdf='menu', mjs=null;   // mrun: chọn file mới giữa chừng thì lượt cũ tự dừng; mpdf: tên PDF, dùng đặt tên zip
 async function menuPdf(file){
   if(!file) return;
   const run=++mrun; mgrid.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
-  mgrid.replaceChildren(); mall.hidden=msel.hidden=mdrop0.hidden=mjson.hidden=true; mjs=null;
+  mgrid.replaceChildren(); mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=true; mjs=null;
   mpdf=slug((file.name||'').replace(/\.pdf$/i,''))||'menu';
   try{
     mhint.textContent='Đang nạp bộ đọc PDF…';
@@ -1101,12 +1184,13 @@ async function menuPdf(file){
     for(let pn=1; pn<=doc.numPages; pn++){
       const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
       TX[pn]=(await page.getTextContent()).items.filter(t=>t.str.trim()).map(t=>{
-        const m=pdfjs.Util.transform(vp.transform,t.transform); return {s:t.str,x:m[4],y:m[5],h:Math.hypot(m[2],m[3])}; });
+        const m=pdfjs.Util.transform(vp.transform,t.transform); return {s:t.str,x:m[4],y:m[5],h:Math.hypot(m[2],m[3]),w:t.width}; });
       new Set(TX[pn].map(t=>t.s.trim())).forEach(s=>seen.set(s,(seen.get(s)||0)+1));
     }
     const keep=t=>seen.get(t.s.trim())<=Math.max(2,doc.numPages/2);
     if(run!==mrun) return;
-    mjs=menuJson(TX.slice(1).map(t=>({texts:t.filter(keep)})), (file.name||'Menu').replace(/\.pdf$/i,''));
+    const used=new Set();
+    mjs=menuJson(TX.slice(1).map(t=>({texts:t.filter(keep)})), (file.name||'Menu').replace(/\.pdf$/i,''), used);
     const items=mjs.menus[0].content.sections.reduce((n,x)=>n+x.items.length,0);
     mjson.textContent='Tải JSON menu ('+items+' món)'; mjson.hidden=!items;
     let named=0;
@@ -1114,9 +1198,8 @@ async function menuPdf(file){
       if(run!==mrun) return;
       mhint.textContent='Đang đọc trang '+pn+'/'+doc.numPages+'…';
       const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
-      const fr=menuFrames(await page.getOperatorList(),vp,pdfjs.OPS,pdfjs.Util);
+      const texts=TX[pn].filter(keep), fr=menuFrames(await page.getOperatorList(),vp,pdfjs.OPS,pdfjs.Util,texts);
       if(!fr.length) continue;
-      const texts=TX[pn].filter(keep);
       const sec=menuHead(texts).map(t=>t.s.trim()).join(' ');
       const v=page.getViewport({scale:MZ}), cv=document.createElement('canvas');
       cv.width=v.width; cv.height=v.height;
@@ -1126,7 +1209,7 @@ async function menuPdf(file){
         const x=Math.round((b[0]+1)*MZ), y=Math.round((b[1]+1)*MZ), w=Math.round((b[2]-b[0]-2)*MZ), h=Math.round((b[3]-b[1]-2)*MZ);
         const c=document.createElement('canvas'); c.width=w; c.height=h;
         c.getContext('2d').drawImage(cv,x,y,w,h,0,0,w,h);
-        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9)), name=menuName(b,texts);
+        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9)), name=menuName(b,texts,used);
         if(run!==mrun) return;
         if(name) named++;
         mgrid.append(menuCard(blob,pn,sec,name,w,h));
@@ -1156,10 +1239,10 @@ mall.onclick=async()=>{
   const names=cs.map(c=>{ const b=mbase(c); let n=b, i=2; while(seen.has(n)) n=b+'-'+i++; seen.add(n); return n+'.jpg'; });
   mall.disabled=true;
   if(cs.length>5){
-    const q=t=>'"'+t.replace(/"/g,'""')+'"', files=[]; let csv='\ufefffile,muc,mon,trang_pdf,kich_thuoc\r\n';
+    const q=t=>'"'+t.replace(/"/g,'""')+'"', files=[]; let csv='\ufefffile,muc,mon,trang_pdf,kich_thuoc,link\r\n';
     for(let i=0;i<cs.length;i++){
       files.push({name:names[i],data:new Uint8Array(await cs[i].blob.arrayBuffer())});
-      csv+=[names[i],q(cs[i].sec),q(mname(cs[i])),cs[i].pn,cs[i].size].join(',')+'\r\n';
+      csv+=[names[i],q(cs[i].sec),q(mname(cs[i])),cs[i].pn,cs[i].size,cs[i].link||''].join(',')+'\r\n';
     }
     files.push({name:'_danh_sach_anh.csv',data:new TextEncoder().encode(csv)});
     if(mjs) files.push({name:mpdf+'_menu.json',data:new TextEncoder().encode(JSON.stringify(mjs,null,2))});
@@ -1168,6 +1251,33 @@ mall.onclick=async()=>{
     saveBlob(cs[i].blob,names[i]);
     await new Promise(r=>setTimeout(r,400));   // tải dồn dập thì trình duyệt bỏ bớt file
   }
+  mcount();
+};
+// Tải lần lượt từng ảnh đã chọn lên máy chủ ảnh tạm; ảnh đã có link còn hạn thì giữ link cũ.
+mup.onclick=async()=>{
+  const key=mkey.value.trim();
+  if(!key){ mkeyd.open=true; mkey.focus(); mhint.textContent='Dán khoá máy chủ ảnh vào ô bên dưới rồi bấm lại.'; return; }
+  const cs=mpicked(); let err='';
+  mup.disabled=true;
+  for(let i=0;i<cs.length;i++){
+    const c=cs[i];
+    if(c.link && c.exp*1000>Date.now()+3600e3) continue;
+    mhint.textContent='Đang tải ảnh '+(i+1)+'/'+cs.length+' lên…';
+    try{
+      const r=await fetch(IMGUP+'/up?name='+encodeURIComponent(mbase(c)),{method:'POST',body:c.blob,
+        headers:{'X-Key':key,'Content-Type':'image/jpeg'},signal:AbortSignal.timeout(60000)});
+      if(r.status===403){ err='sai khoá'; mkeyd.open=true; break; }
+      if(!r.ok) throw new Error(await r.text()||'HTTP '+r.status);
+      const j=await r.json(); c.link=j.url; c.exp=j.expires; c.lnk.textContent=j.url; c.lnk.hidden=false;
+    }catch(e){ err=e.message; break; }
+  }
+  const done=cs.filter(c=>c.link);
+  // copy dạng "tên món <tab> link": dán vào bảng tính ra 2 cột
+  const cp=done.length && await copy(done.map(c=>mname(c)+'\t'+c.link).join('\n'));
+  mhint.textContent=(done.length ? done.length+' ảnh có link, hết hạn '+new Date(Math.min(...done.map(c=>c.exp))*1000)
+      .toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'})+(cp?'. Đã copy cả danh sách (tên món, link).':'.')
+      +' Bấm link dưới ảnh để copy riêng; file zip có thêm cột link trong CSV.' : '')
+    +(err ? ' Dừng vì lỗi: '+err+'.' : '');
   mcount();
 };
 

@@ -7,7 +7,9 @@
 # /ig?url=<link Instagram>: cùng đường ống yt-dlp cho reel / bài video Instagram công khai.
 # Cần yt-dlp, deno (yt-dlp giải chữ ký YouTube), ffmpeg trong bin/ cạnh file này (bản chạy độc lập, không sudo).
 # Chạy: FB_RELAY_KEY=<khoá> python3 fbrelay.py   (nghe 127.0.0.1:8787, mở ra ngoài qua Cloudflare Tunnel)
-import hmac, json, os, re, shutil, subprocess, tempfile, urllib.parse, urllib.request
+# POST /up?name=<slug> (thân = 1 ảnh JPEG, cần X-Key): lưu vào img/, trả link công khai /i/<mã>.jpg sống 7 ngày
+# để đưa cho bên thứ 3 / CDN. Hết hạn thì 404 và xoá; mỗi lần tải lên dọn luôn ảnh quá hạn.
+import hmac, json, os, re, secrets, shutil, subprocess, tempfile, time, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 KEY = os.environ['FB_RELAY_KEY']
@@ -19,12 +21,16 @@ ENV = {**os.environ, 'PATH': BIN + os.pathsep + os.environ.get('PATH', '')}
 # H.264 + AAC (m4a), nét nhất tới 1080p (res = cạnh ngắn, nên Short dọc 1080x1920 vẫn lấy đủ). Trên 1080p
 # YouTube chỉ có VP9/AV1 — nhiều máy phát ra màn đen, nên không lấy.
 YTDLP = [BIN + '/yt-dlp', '--no-playlist', '--no-warnings', '-f', 'bv*+ba/b', '-S', 'vcodec:h264,res:1080,acodec:m4a']
+IMG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'img')
+TTL, MAXUP, QUOTA = 7 * 86400, 10 << 20, 2 << 30   # sống 7 ngày; 10 MB mỗi ảnh; tổng thư mục tối đa 2 GB
+IMGNAME = re.compile(r'/i/([\w-]{12,80}\.jpg)')
 
 
 class H(BaseHTTPRequestHandler):
     def text(self, code, msg):
         b = msg.encode()
         self.send_response(code)
+        self.cors()
         self.send_header('Content-Type', 'text/plain; charset=utf-8')
         self.send_header('Content-Length', str(len(b)))
         self.end_headers()
@@ -75,7 +81,85 @@ class H(BaseHTTPRequestHandler):
                 p.kill(); p.wait()
             os.unlink(f.name)
 
+    def cors(self):
+        self.send_header('Access-Control-Allow-Origin', '*')  # trang GitHub Pages gọi chéo miền; khoá vẫn chặn người lạ
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.cors()
+        self.send_header('Access-Control-Allow-Methods', 'POST')
+        self.send_header('Access-Control-Allow-Headers', 'X-Key, Content-Type')
+        self.send_header('Access-Control-Max-Age', '86400')
+        self.end_headers()
+
+    def do_POST(self):
+        if not self.path.startswith('/up') or not hmac.compare_digest(self.headers.get('X-Key', ''), KEY):
+            self.send_response(403); self.cors(); self.end_headers(); return
+        n = int(self.headers.get('Content-Length') or 0)
+        if not 0 < n <= MAXUP:
+            return self.text(413, 'Ảnh phải dưới 10 MB')
+        body = self.rfile.read(n)
+        if body[:3] != b'\xff\xd8\xff':
+            return self.text(415, 'Chỉ nhận ảnh JPEG')
+        os.makedirs(IMG, exist_ok=True)
+        now, used = time.time(), 0
+        for e in os.scandir(IMG):
+            try:
+                if now - e.stat().st_mtime > TTL:
+                    os.unlink(e.path)
+                else:
+                    used += e.stat().st_size
+            except FileNotFoundError:
+                pass  # luồng khác vừa xoá
+        if used + n > QUOTA:
+            return self.text(507, 'Máy chủ hết chỗ, đợi ảnh cũ hết hạn')
+        slug = re.sub(r'[^a-z0-9_-]', '', (urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('name') or [''])[0])[:60]
+        name = secrets.token_urlsafe(9) + ('-' + slug if slug else '') + '.jpg'  # mã ngẫu nhiên: không đoán ra link ảnh khác
+        tmp = os.path.join(IMG, '.' + name)
+        with open(tmp, 'wb') as f:
+            f.write(body)
+        os.replace(tmp, os.path.join(IMG, name))
+        b = json.dumps({'url': f'https://{self.headers["Host"]}/i/{name}', 'expires': int(now + TTL)}).encode()
+        self.send_response(200)
+        self.cors()
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    # Ảnh công khai, không cần khoá. Cache-Control = thời gian còn sống, nên CDN (cả Cloudflare đứng trước tunnel)
+    # giữ bản sao không quá hạn 7 ngày.
+    def img(self, body=True):
+        m = IMGNAME.fullmatch(urllib.parse.urlsplit(self.path).path)
+        p = m and os.path.join(IMG, m[1])
+        try:
+            left = TTL - (time.time() - os.stat(p).st_mtime) if p else -1
+        except FileNotFoundError:
+            left = -1
+        if left <= 0:
+            if p and os.path.exists(p):
+                try:
+                    os.unlink(p)
+                except FileNotFoundError:
+                    pass
+            return self.send_error(404)
+        with open(p, 'rb') as f:
+            data = f.read()
+        self.send_response(200)
+        self.cors()
+        self.send_header('Content-Type', 'image/jpeg')
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Cache-Control', f'public, max-age={int(left)}, immutable')
+        self.end_headers()
+        if body:
+            self.wfile.write(data)
+
+    def do_HEAD(self):
+        return self.img(False) if self.path.startswith('/i/') else self.send_error(405)
+
     def do_GET(self):
+        if self.path.startswith('/i/'):
+            return self.img()
         if not hmac.compare_digest(self.headers.get('X-Key', ''), KEY):
             return self.send_error(403)
         q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
