@@ -161,6 +161,7 @@
   .tok{margin-top:10px;font-size:12.5px;color:var(--mut)}
   .tok summary{cursor:pointer;width:fit-content;border-radius:4px}
   .tok .row{margin-top:8px}
+  #murlf{margin-top:8px}
   .tok input{flex:0 1 180px;font-size:13px;padding:7px 10px}
   .tok button{padding:7px 12px;font-size:13px}
   .tok p{margin:8px 0 0;line-height:1.5;max-width:70ch}
@@ -185,6 +186,12 @@
   .empty-in strong{display:block;color:var(--ink);font-size:15px;font-weight:600}
   .empty-in ol{margin:8px 0 10px;padding-left:20px}
   .empty-in a{color:var(--water);font-weight:500}
+  #mempty{padding:28px 16px}
+  #mempty .empty-in{max-width:76ch}
+  #mempty h4{margin:14px 0 4px;color:var(--mut);font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  #mempty p{margin:0}
+  #mempty ul{margin:0;padding-left:20px}
+  #mempty li{margin:3px 0}
 
   /* ---------- hướng dẫn: bảng chú giải của tấm bản đồ ---------- */
   .guide{max-width:1180px;margin:0 auto}
@@ -375,13 +382,7 @@
 <section data-tab="menu" hidden>
 <div class="panel" id="mdrop">
   <h2 class="ttl">Tách ảnh món từ menu PDF</h2>
-  <p class="lead">Chọn file PDF menu: trang tự cắt từng ảnh món và điền tên món in ngay dưới hoặc bên phải ảnh.
-    Tên nào sai hay còn trống thì sửa ngay trong ô dưới ảnh. Bỏ tích ảnh không cần rồi tải: từ 6 ảnh trở lên gói
-    thành một file zip kèm bảng kê CSV. Tên file gồm số trang, mục và tên món
-    (<code>p23_pizza_pizza-hai-san.jpg</code>). Nút <b>Tải JSON menu</b> xuất mục, tên món, mô tả và giá đọc được
-    từ chữ trong PDF (không dùng AI, cần rà lại). Xử lý ngay trong trình duyệt, file PDF không tải lên đâu cả.
-    Riêng nút <b>Tạo link 7 ngày</b> tải ảnh đã chọn lên máy chủ riêng, mỗi ảnh ra một link công khai
-    (đưa cho CDN hay bên thứ 3) và tự xoá sau 7 ngày.</p>
+  <p class="lead">Chọn file hoặc dán link PDF menu: trang tự cắt ảnh từng món, điền tên món, rồi tải về hay tạo link.</p>
   <div class="bar">
     <button id="mpick" class="pri">Chọn file PDF…</button>
     <input type="file" id="mf" accept="application/pdf" hidden>
@@ -392,6 +393,10 @@
     <button id="mai" hidden title="Copy câu lệnh làm nét, dán vào Gemini hoặc ChatGPT kèm các ảnh ghi “mờ” (Claude không xuất được ảnh)"></button>
     <button id="mjson" hidden></button>
   </div>
+  <form class="row" id="murlf">
+    <input type="text" id="murl" inputmode="url" spellcheck="false" placeholder="…hoặc dán link PDF (https://…/menu.pdf)" aria-label="Link file PDF">
+    <button>Mở link</button>
+  </form>
   <p class="hint" id="mhint" aria-live="polite">Kéo thả file PDF vào khung này cũng được.</p>
   <details class="tok" id="mkeyd">
     <summary>Khoá máy chủ ảnh (để tạo link)</summary>
@@ -399,6 +404,31 @@
     <p>Chỉ cần cho nút Tạo link 7 ngày. Khoá lưu trong trình duyệt này, không nằm trong trang.</p>
   </details>
 </div>
+<div class="empty" id="mempty"><div class="empty-in">
+  <strong>Chưa có menu nào</strong>
+  <ol>
+    <li>Đưa menu vào: bấm <b>Chọn file PDF…</b>, kéo thả file vào khung trên, hoặc dán link PDF rồi bấm <b>Mở link</b>.</li>
+    <li>Trang tự cắt ảnh từng món và điền tên món in cạnh ảnh. Tên sai hay còn trống thì sửa ngay trong ô dưới ảnh.</li>
+    <li>Bỏ tích ảnh không cần (ảnh trang trí, ảnh ghép nhiều món), rồi tải về hoặc tạo link.</li>
+  </ol>
+  <h4>Các nút hiện ra sau khi đọc xong</h4>
+  <ul>
+    <li><b>Tải … ảnh đã chọn</b>: từ 6 ảnh trở lên gói thành một file zip kèm bảng kê CSV. Tên file gồm trang, mục
+      và tên món, ví dụ <code>p23_pizza_pizza-hai-san.jpg</code>. Nút ↓ dưới ảnh tải riêng ảnh đó.</li>
+    <li><b>Bỏ chọn ảnh chưa có tên</b>: loại nhanh ảnh trang trí, vì ảnh món thường có tên in kèm.</li>
+    <li><b>Tải JSON menu</b>: mục, tên món, mô tả và giá đọc từ chữ trong PDF. Không dùng AI nên cần rà lại.</li>
+    <li><b>Tạo link 7 ngày</b>: đưa ảnh đã chọn lên máy chủ riêng, mỗi ảnh ra một link công khai để gửi cho CDN hay
+      bên thứ 3. Link tự hết hạn và ảnh tự xoá sau 7 ngày. Cần khoá máy chủ ảnh.</li>
+    <li><b>Copy prompt làm nét</b>: chỉ hiện khi có ảnh ghi “mờ” ở góc (ảnh gốc trong PDF quá nhỏ). Tải các ảnh đó,
+      dán prompt kèm ảnh vào Gemini hoặc ChatGPT để AI làm nét. Claude không trả lại ảnh nên không dùng được.</li>
+  </ul>
+  <h4>Mở bằng link PDF</h4>
+  <p>Có website cho tải thẳng, có website chặn trang khác đọc file. Gặp website chặn, trang báo một dòng kèm nút mở
+    link ở tab mới: tải PDF về máy rồi bấm Chọn file PDF… hoặc kéo thả vào khung trên.</p>
+  <h4>Dữ liệu đi đâu</h4>
+  <p>Menu (chọn từ máy hay mở bằng link) chỉ xử lý trong trình duyệt, không gửi đi đâu. Chỉ ảnh bạn bấm Tạo link mới
+    được lưu trên máy chủ riêng, trong 7 ngày.</p>
+</div></div>
 <div class="grid" id="mgrid"></div>
 </section>
 
@@ -1143,7 +1173,7 @@ const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/', MZ=3;   //
 const mgrid=document.getElementById('mgrid'), mhint=document.getElementById('mhint'), mf=document.getElementById('mf'),
       mall=document.getElementById('mall'), mdrop0=document.getElementById('mdrop0'), mdrop=document.getElementById('mdrop'),
       msel=document.getElementById('msel'), mjson=document.getElementById('mjson'),
-      mup=document.getElementById('mup'), mkey=document.getElementById('mkey'), mkeyd=document.getElementById('mkeyd'),
+      mup=document.getElementById('mup'), mkey=document.getElementById('mkey'), mkeyd=document.getElementById('mkeyd'), mempty=document.getElementById('mempty'),
       mai=document.getElementById('mai');
 // Máy chủ ảnh tạm = fbrelay.py trên máy nhà (POST /up, ảnh sống 7 ngày); khoá không nhúng vào trang vì trang công khai.
 const IMGUP='https://fbx.120203.xyz';
@@ -1157,7 +1187,9 @@ const mname=c=>c.querySelector('input[type=text]').value.trim();
 const mbase=c=>['p'+String(c.pn).padStart(2,'0'), slug(c.sec), slug(mname(c))||'anh-'+([...mgrid.children].indexOf(c)+1)]
   .filter(Boolean).join('_');
 const mpicked=()=>[...mgrid.children].filter(c=>c.querySelector('.mck').checked);
-function mcount(){
+// Khung hướng dẫn chỉ hiện khi trang trống: ô link chưa có chữ và chưa có ảnh nào
+const mguide=()=>{ mempty.hidden=!!murl.value.trim() || mgrid.children.length>0; };
+function mcount(){ mguide();
   const n=mpicked().length, all=mgrid.children.length;
   mall.textContent='Tải '+n+' ảnh đã chọn'+(n>5?' (zip)':''); mall.disabled=!n;
   mup.textContent='Tạo link 7 ngày ('+n+')'; mup.disabled=!n;
@@ -1190,7 +1222,7 @@ let mrun=0, mpdf='menu', mjs=null;   // mrun: chọn file mới giữa chừng t
 async function menuPdf(file){
   if(!file) return;
   const run=++mrun; mgrid.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
-  mgrid.replaceChildren(); mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=mai.hidden=true; mjs=null;
+  mgrid.replaceChildren(); mempty.hidden=true; mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=mai.hidden=true; mjs=null;
   mpdf=slug((file.name||'').replace(/\.pdf$/i,''))||'menu';
   try{
     mhint.textContent='Đang nạp bộ đọc PDF…';
@@ -1234,7 +1266,7 @@ async function menuPdf(file){
       : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
     if(items) mhint.textContent+=' JSON menu: '+items+' món có giá, '+mjs.menus[0].content.sections.length+' mục.';
     mcount(); mdrop0.hidden=n===named; maiCount();
-  }catch(e){ if(run===mrun) mhint.textContent='Không đọc được file PDF này ('+e.message+').'; }
+  }catch(e){ if(run===mrun){ mhint.textContent='Không đọc được file PDF này ('+e.message+').'; mguide(); } }
 }
 // Cắt một khung ảnh món. Vẽ khung ở đúng độ nét ảnh gốc (b.d px/pt, cạnh dài tối đa 2400px): pdf.js phóng ảnh quá
 // ~1.33 lần thì tắt làm mượt, ảnh nhỏ bị vỡ ô vuông. Ảnh gốc thưa hơn MZ thì tự phóng lên MZ bằng nội suy chất lượng
@@ -1264,6 +1296,21 @@ function maiCount(){ const n=[...mgrid.children].filter(c=>c.low).length; mai.hi
 mai.onclick=()=>copy(MAI_PROMPT).then(ok=>{ mhint.textContent=ok
   ? 'Đã copy prompt. Tải các ảnh ghi “mờ”, dán prompt kèm ảnh vào Gemini hoặc ChatGPT (Claude không xuất được ảnh).'
   : 'Copy không được, trình duyệt chặn quyền clipboard.'; });
+// Link PDF: tải thẳng trong trình duyệt. Đa số web chặn trang khác miền đọc file (CORS) -> báo 1 dòng kèm cách làm tay.
+murl.oninput=mguide;
+document.getElementById('murlf').onsubmit=async e=>{
+  e.preventDefault(); const bt=e.target.querySelector('button'), u=murl.value.trim(); let r;
+  if(!/^https?:\/\/\S+$/i.test(u)){ mhint.textContent='Link phải bắt đầu bằng http:// hoặc https://'; murl.focus(); return; }
+  bt.disabled=true; mhint.textContent='Đang tải PDF từ link…';
+  try{ r=await fetch(u,{signal:AbortSignal.timeout(60000)}); }catch(err){}
+  bt.disabled=false;
+  if(!r){ const a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent='mở link ở tab mới';
+    mhint.replaceChildren('Website này chặn trang khác đọc file. Cách làm: ',a,', tải PDF về máy rồi bấm Chọn file PDF… hoặc kéo thả vào khung này.');
+    return; }
+  if(!r.ok){ mhint.textContent='Link trả lỗi '+r.status+', kiểm lại link.'; return; }
+  let name='menu.pdf'; try{ name=decodeURIComponent(new URL(u).pathname.split('/').pop())||name; }catch(err){}
+  await menuPdf(new File([await r.blob()],name,{type:'application/pdf'}));
+};
 document.getElementById('mpick').onclick=()=>mf.click();
 mf.onchange=()=>{ menuPdf(mf.files[0]); mf.value=''; };
 mdrop.addEventListener('dragover',e=>{ e.preventDefault(); mdrop.classList.add('drag'); });

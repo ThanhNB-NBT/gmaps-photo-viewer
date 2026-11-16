@@ -97,6 +97,9 @@ Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng �
   cả danh sách `tên món<tab>link` được copy sẵn, CSV trong zip có thêm cột `link`. Sau 7 ngày link trả 404 và file bị xoá
   (`Cache-Control: max-age` = thời gian còn sống nên CDN cũng không giữ quá hạn). Mỗi ảnh ≤ 10 MB, chỉ JPEG,
   tổng thư mục `~/fbrelay/img` ≤ 2 GB.
+- **Mở link PDF**: dán link vào ô dưới nút Chọn file rồi Enter, trình duyệt tải thẳng. Chỉ được khi website chứa PDF cho
+  CORS; website chặn thì trang báo một dòng kèm link mở ở tab mới để tải về rồi chọn file (không nhờ máy nhà tải hộ).
+- Khung hướng dẫn chiếm chỗ lưới ảnh khi tab trống; ẩn khi ô link có chữ hoặc đã có ảnh, hiện lại khi xoá trắng.
 - Tên file: `p<trang>_<mục>_<tên món>.jpg`, không dấu (ví dụ `p23_pizza_pizza-hai-san.jpg`). Mục là tiêu đề to nhất
   của trang, trang không có tiêu đề thì bỏ phần này; ảnh chưa có tên là `p07_set-viet_anh-31.jpg`; trùng tên thì thêm `-2`.
 - **Tải JSON menu** (không dùng AI): xuất `<tên pdf>_menu.json` theo khuôn `{schema_version:1, menus:[{name, type, source_url,
