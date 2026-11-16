@@ -17,9 +17,9 @@ const vp={transform:[1,0,0,1,0,0],width:800,height:600};
 // ảnh 400x300 đặt ở (0,100) bị clip còn 40..280 x 120..280; icon 20x20; ảnh nền kín trang; ảnh sau restore không còn clip
 const ops=[[1],[4,[[],[],[40,120,280,280]]],[5],[3,[400,0,0,300,0,100]],[9],[2],
            [1],[3,[20,0,0,20,5,5]],[9],[2], [1],[3,[800,0,0,600,0,0]],[9],[2], [1],[3,[200,0,0,150,500,400]],[9],[2]];
-assert.deepStrictEqual(menuFrames({fnArray:ops.map(o=>o[0]),argsArray:ops.map(o=>o[1])},vp,OPS,Util),
+assert.deepStrictEqual(menuFrames({fnArray:ops.map(o=>o[0]),argsArray:ops.map(o=>o[1])},vp,OPS,Util).map(b=>[...b]),
   [[40,120,280,280],[500,400,700,550]]);
-const img=(x,y,w,h)=>[[1],[3,[w,0,0,h,x,y]],[9],[2]], F=(list,t)=>{ const o=list.flat(); return menuFrames({fnArray:o.map(a=>a[0]),argsArray:o.map(a=>a[1])},vp,OPS,Util,t); };
+const img=(x,y,w,h)=>[[1],[3,[w,0,0,h,x,y]],[9],[2]], F=(list,t)=>{ const o=list.flat(); return menuFrames({fnArray:o.map(a=>a[0]),argsArray:o.map(a=>a[1])},vp,OPS,Util,t).map(b=>[...b]); };
 // lưới 4 ô khít nhau -> 1 khung; ảnh vẽ trùng 2 lần -> 1; 2 ảnh món khít nhau vẫn để riêng
 assert.deepStrictEqual(F([img(100,100,100,100),img(200,100,100,100),img(100,200,100,100),img(200,200,100,100),
   img(500,100,100,100),img(500,100,100,100),img(400,400,100,100),img(500,400,100,100)]),
@@ -29,6 +29,11 @@ assert.deepStrictEqual(F([img(0,0,300,200),img(400,0,200,200)],[...Array(10)].ma
   [[400,0,600,200]]);
 assert.deepStrictEqual(F([img(0,0,800,600)],[]),[[0,0,800,600]]);
 assert.deepStrictEqual(F([img(0,0,800,600)]),[]);
+// khung lồng: khung trong >= 30% khung ngoài -> giữ khung trong; logo nhỏ in đè ảnh -> giữ cả hai
+assert.deepStrictEqual(F([img(100,100,300,300),img(150,150,200,200)]),[[150,150,350,350]]);
+assert.deepStrictEqual(F([img(100,100,300,300),img(150,150,60,60)]),[[100,100,400,400],[150,150,210,210]]);
+// độ nét gốc: ảnh 800x400 px vẽ vào khung 200x100 pt -> 4 px/pt
+assert.equal(menuFrames({fnArray:[1,3,9,2],argsArray:[null,[200,0,0,100,0,0],['i',800,400],null]},vp,OPS,Util)[0].d,4);
 const texts=[{s:'KHAI VỊ',x:600,y:80,h:44},{s:'BÁNH MÌ SOURDOUGH &',x:40,y:304,h:14},{s:'BƠ MISO',x:40,y:319,h:14},
   {s:'185.000++',x:220,y:304,h:14},{s:'Bột chua, bơ',x:40,y:334,h:9},{s:'LaKitchen.com',x:40,y:590,h:14},{s:'SÚP BÍ',x:710,y:450,h:14}];
 assert.equal(menuName([40,120,280,280],texts),'BÁNH MÌ SOURDOUGH & BƠ MISO');   // dưới ảnh: ghép 2 dòng, bỏ giá và mô tả
@@ -52,6 +57,13 @@ assert.equal(menuName([297,256,579,469],[{s:'Sườn bò',x:87,y:510,h:12},{s:'B
 assert.equal(menuName([50,100,200,250],[{s:'COM TAM',x:60,y:265,h:12,w:60},{s:'Broken Rice Platter',x:60,y:279,h:12,w:110}]),'COM TAM Broken Rice Platter');
 assert.equal(menuName([50,100,200,250],[{s:'VND 220',x:60,y:265,h:12,w:60},{s:'VND 500/100gr',x:60,y:279,h:12,w:80}]),'');
 assert.equal(menuName([726,169,815,258],[{s:'MEAT - CÁC MÓN THỊT BÒ & THỊT LỢN',x:484,y:243,h:12.4,w:220}]),'');
+// tên Hán + dòng tên Latin bên dưới, dừng ở mã dị ứng; không nhảy sang tiêu đề mục to hơn ở khối chữ sau khoảng trống
+assert.equal(menuName([20,100,120,170],[{s:'涼拌青瓜海蜇',x:40,y:179,h:8,w:48},{s:'Aromatic Sesame Jelly Fish Salad',x:22,y:187,h:7,w:100},
+  {s:'(SE,SF,S,G)',x:45,y:196,h:7,w:40},{s:'CHINESE BBQ',x:60,y:225,h:12.5,w:70}]),'涼拌青瓜海蜇 Aromatic Sesame Jelly Fish Salad');
+// chú giải in lặp ở hai nửa trang đôi, câu mô tả có dấu chấm, hàng tiêu đề nhiều cột: không phải tên
+assert.equal(menuName([50,100,200,250],[{s:'Chef Recommended',x:60,y:265,h:9.6,w:80},{s:'Chef Recommended',x:505,y:265,h:9.6,w:80}]),'');
+assert.equal(menuName([50,100,200,250],[{s:'Deep-fried chicken wings with black pepper.',x:60,y:265,h:12,w:200}]),'');
+assert.ok(!/Soup Korean/.test(menuName([0,115,765,495],[{s:'Beef Short Rib Soup',x:50,y:510,h:12,w:110},{s:'Korean Cold Noodle',x:450,y:510,h:12,w:100}])));
 // JSON menu: (1) tên + chấm dẫn + giá cùng dòng, mô tả cỡ nhỏ bên dưới, giá ghi theo nghìn; (2) giá in dưới khối tên
 const J=menuJson([{texts:[{s:'Soups',x:266,y:159,h:40},
   {s:'LOBSTER BISQUE',x:85,y:227,h:12},{s:'| SÚP TÔM HÙM',x:253,y:227,h:12},{s:'..........',x:388,y:227,h:12},{s:'380',x:490,y:227,h:12},

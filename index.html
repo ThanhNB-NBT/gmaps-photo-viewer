@@ -389,6 +389,7 @@
     <button id="mup" hidden></button>
     <button id="msel" hidden></button>
     <button id="mdrop0" hidden>Bỏ chọn ảnh chưa có tên</button>
+    <button id="mai" hidden title="Copy câu lệnh làm nét, dán vào Gemini hoặc ChatGPT kèm các ảnh ghi “mờ” (Claude không xuất được ảnh)"></button>
     <button id="mjson" hidden></button>
   </div>
   <p class="hint" id="mhint" aria-live="polite">Kéo thả file PDF vào khung này cũng được.</p>
@@ -956,6 +957,8 @@ function menuFrames(ol, vp, OPS, Util, texts){
       const b=cut(box(ctm,0,0,1,1),clip), w=b[2]-b[0], h=b[3]-b[1];
       // bỏ icon, ảnh bị che hết (w,h âm), và ảnh nền phủ gần kín trang
       if(w>=60 && h>=60 && (w*h<.6*vp.width*vp.height || texts && !texts.length)) out.push(b);
+      // b.d: số điểm ảnh gốc trên 1pt (a = [id, rộng px, cao px]) để lúc cắt vẽ đúng độ nét của ảnh
+      const u=box(ctm,0,0,1,1); b.d=a&&a[1] ? Math.sqrt(a[1]*a[2]/((u[2]-u[0])*(u[3]-u[1]))) : 0;
     }
   });
   // Vẽ trùng một chỗ (IoU > 0.9) thì giữ một. Từ 4 mảnh trở lên nối nhau bằng mép (khít hoặc chờm < 5%) là một hình
@@ -969,13 +972,15 @@ function menuFrames(ol, vp, OPS, Util, texts){
     const g=[i]; seen.add(i);
     for(let k=0;k<g.length;k++) U.forEach((c,j)=>{ if(!seen.has(j) && edge(U[g[k]],c)){ seen.add(j); g.push(j); } });
     const bs=g.sort((p,q)=>p-q).map(j=>U[j]);
-    if(bs.length>=4) res.push([0,1,2,3].map(k=>(k<2?Math.min:Math.max)(...bs.map(c=>c[k]))));
+    if(bs.length>=4){ const m=[0,1,2,3].map(k=>(k<2?Math.min:Math.max)(...bs.map(c=>c[k]))); m.d=Math.max(...bs.map(c=>c.d)); res.push(m); }
     else res.push(...bs);
   });
-  if(!texts) return res;
   // chữ phủ > 8% diện tích khung là tấm nền sau đoạn văn (đo: tấm nền 9-24%, ảnh món có chữ in đè <= 5%)
-  const inb=(b,t)=>{ const x=t.x+(t.w??.55*t.h*t.s.length)/2, y=t.y-t.h/2; return x>b[0]+2 && x<b[2]-2 && y>b[1]+2 && y<b[3]-2; };
-  return res.filter(b=>texts.filter(t=>inb(b,t)).reduce((n,t)=>n+(t.w??.55*t.h*t.s.length)*t.h,0)<.08*area(b));
+  const inb=(b,t)=>{ const x=t.x+(t.w??.55*t.h*t.s.length)/2, y=t.y-t.h/2; return x>b[0]+2 && x<b[2]-2 && y>b[1]+2 && y<b[3]-2; },
+        R=texts ? res.filter(b=>texts.filter(t=>inb(b,t)).reduce((n,t)=>n+(t.w??.55*t.h*t.s.length)*t.h,0)<.08*area(b)) : res;
+  // khung chứa trọn một khung khác chiếm >= 30% nó: giữ khung trong (ảnh món cắt nền chồng lên nhau, ảnh món trên
+  // tấm nền nửa trang); khung trong nhỏ hơn thế là logo/huy hiệu in đè ảnh thì giữ ảnh ngoài
+  return R.filter(a=>!R.some(c=>c!==a && area(c)>=.3*area(a) && area(c)<area(a) && area(cut(a,c))>=.9*area(c)));
 }
 // Tiêu đề trang (= mục của menu): các dòng cỡ chữ lớn nhất, với điều kiện to hẳn (>=18pt) và chỉ 1-2 dòng.
 // Trang mà mọi chữ cùng cỡ (menu chỉ có tên món) thì không có tiêu đề.
@@ -998,7 +1003,9 @@ function menuName(b, texts, used=new Set()){
         PRICE=/^[\s—–~$€£¥-]*(VNĐ|VND|USD)?\s*\d[\d.,\s+]*(k|đ|₫|VNĐ|VND|USD)?(\s*\/\s*\d*\s*\p{L}{0,3})?\s*$/iu,
         // tên mục song ngữ in hoa "MEAT - CÁC MÓN THỊT" (cỡ chữ nhỏ hơn tiêu đề trang nên menuHead không bắt)
         SEC=/^[\p{Lu}\s&,]+ [-–—] [\p{Lu}\s&,]+$/u,
-        T=texts.filter(t=>!head.includes(t) && /\p{L}/u.test(t.s) && !PRICE.test(t.s) && !SEC.test(t.s.trim()));
+        T=texts.filter(t=>!head.includes(t) && /\p{L}/u.test(t.s) && !PRICE.test(t.s) && !SEC.test(t.s.trim())
+          // cùng chữ in lại đúng dòng đó ở nửa trang kia (trang đôi): chân trang/chú giải ký hiệu, không phải tên món
+          && !texts.some(u=>u!==t && u.s===t.s && Math.abs(u.y-t.y)<1 && Math.abs(u.x-t.x)>250));
   const up=s=>/\p{Lu}/u.test(s) && s===s.toUpperCase();
   const pick=c=>{ if(!c.length) return '';
     const h=Math.max(...c.map(t=>t.h)), top=Math.min(...c.filter(t=>t.h>h-1).map(t=>t.y));
@@ -1009,9 +1016,18 @@ function menuName(b, texts, used=new Set()){
     const line=t=>a.filter(u=>Math.abs(u.y-t.y)<1).map(u=>u.s).join(' '),
           desc=l=>!up(l) && (l.match(/(^|\s)\p{Ll}/gu)||[]).length>=2;
     if(up(line(a[0]))){ const k=a.findIndex(t=>desc(line(t))); if(k>0) a=a.slice(0,k); }
+    // mảnh cùng dòng cách nhau > 5 cỡ chữ là các cột khác nhau (hàng tiêu đề bảng), không phải một tên
+    if(a.some(t=>{ const n=a.filter(u=>Math.abs(u.y-t.y)<1 && u.x>t.x).sort((p,q)=>p.x-q.x)[0]; return n && n.x-t.x-W(t)>5*t.h; })) return '';
+    // tên chỉ có chữ Hán/Hàn ("涼拌青瓜海蜇" / "Aromatic Sesame Jelly Fish Salad" / "(SE,SF,S,G)"): nối các dòng
+    // tên Latin cỡ nhỏ hơn ngay dưới, dừng ở dòng không mở đầu bằng chữ Latin hoặc cách quá xa
+    if(!/\p{Script=Latin}/u.test(cat(a))){ let y=Math.max(...a.map(t=>t.y));
+      for(const t of c.filter(t=>t.y>y+.5).sort((p,q)=>p.y-q.y||p.x-q.x)){
+        if(t.y-t.h-y>1.2*t.h || !/^\p{Script=Latin}/u.test(t.s.trim()) || cat([...a,t]).length>60) break; a.push(t); y=t.y; } }
     const s=cat(a).replace(/^\d{1,3}[.)]\s+/,'').replace(/\s*[—–-]+\s*\d[\d.,]*\s*$/,''), w=s.split(' ');
     // dài quá 60 ký tự là đoạn mô tả/quảng cáo; quá nửa là chữ cái lẻ ("T U HT") là chữ chạy theo đường cong bị vỡ
-    return s.length>60 || !/\p{L}{2}/u.test(s) || w.length>=3 && 2*w.filter(x=>x.length===1).length>w.length ? '' : s; };
+    // câu kết thúc bằng dấu chấm (>= 4 từ) là dòng mô tả
+    return s.length>60 || !/\p{L}{2}/u.test(s) || w.length>=3 && 2*w.filter(x=>x.length===1).length>w.length
+      || w.length>=4 && /\.\s*$/.test(s) ? '' : s; };
   const W=t=>t.w??.55*t.h*t.s.length,   // bề ngang mảnh chữ; thiếu thì ước theo số ký tự
         inb=t=>{ const x=t.x+W(t)/2, y=t.y-t.h/2; return x>b[0]+2 && x<b[2]-2 && y>b[1]+2 && y<b[3]-2; },
         // khoảng cách từ ô chữ (x..x+w, y-h..y) tới khung; 0 = chạm hoặc đè lên ảnh
@@ -1031,7 +1047,9 @@ function menuName(b, texts, used=new Set()){
   // ảnh có số in đè (huy hiệu "23") trỏ về món đánh số "23. TÊN MÓN" trên trang
   const no=texts.filter(t=>/^\d{1,3}$/.test(t.s.trim()) && inb(t)),
         it=no.length===1 && texts.find(t=>new RegExp('^'+no[0].s.trim()+'[.)]\\s*\\p{L}','u').test(t.s.trim())),
-        below=T.filter(t=>t.y>b[3]-2 && t.y<b[3]+60 && t.x>b[0]-60 && t.x<b[2]-20),
+        // dưới ảnh: chỉ khối chữ sát ảnh nhất, dừng ở khoảng trống dọc > 1.2 dòng (bên dưới nữa là tiêu đề mục kế tiếp)
+        B0=T.filter(t=>t.y>b[3]-2 && t.y<b[3]+60 && t.x>b[0]-60 && t.x<b[2]-20).sort((p,q)=>p.y-q.y),
+        k=B0.findIndex((t,i)=>i>0 && t.y-t.h-B0[i-1].y>1.2*B0[i-1].h), below=k<0 ? B0 : B0.slice(0,k),
         ins=T.filter(inb), hm=a=>Math.max(0,...a.map(t=>t.h));
   return (it ? pick([...grow([it],T.filter(t=>t.y>it.y-1 && t.y<it.y+3.2*it.h && t.x>it.x-5),(a,t)=>t.x<it.x+W(it)+20)]) : '')
       // tên in đè trong ảnh, chữ to hơn dòng dưới ảnh (dưới thường là mô tả); quá 4 dòng là bảng giá in đè, không phải tên
@@ -1125,7 +1143,8 @@ const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/', MZ=3;   //
 const mgrid=document.getElementById('mgrid'), mhint=document.getElementById('mhint'), mf=document.getElementById('mf'),
       mall=document.getElementById('mall'), mdrop0=document.getElementById('mdrop0'), mdrop=document.getElementById('mdrop'),
       msel=document.getElementById('msel'), mjson=document.getElementById('mjson'),
-      mup=document.getElementById('mup'), mkey=document.getElementById('mkey'), mkeyd=document.getElementById('mkeyd');
+      mup=document.getElementById('mup'), mkey=document.getElementById('mkey'), mkeyd=document.getElementById('mkeyd'),
+      mai=document.getElementById('mai');
 // Máy chủ ảnh tạm = fbrelay.py trên máy nhà (POST /up, ảnh sống 7 ngày); khoá không nhúng vào trang vì trang công khai.
 const IMGUP='https://fbx.120203.xyz';
 try{ mkey.value=localStorage.getItem('gpv-imgkey')||''; }catch(e){}
@@ -1158,9 +1177,9 @@ function menuCard(blob,pn,sec,name,w,h){
   const inp=document.createElement('input'); inp.type='text'; inp.value=name; inp.placeholder='Chưa rõ tên món…';
   inp.setAttribute('aria-label','Tên món, trang '+pn);
   const d=document.createElement('button'); d.className='x dl'; d.textContent='↓'; d.title='Tải ảnh này';
-  d.onclick=()=>saveBlob(blob,mbase(c)+'.jpg');
+  d.onclick=()=>saveBlob(c.blob,mbase(c)+'.jpg');
   const x=document.createElement('button'); x.className='x'; x.textContent='×'; x.title='Bỏ ảnh này';
-  x.onclick=()=>{ URL.revokeObjectURL(img.src); c.remove(); mcount(); };
+  x.onclick=()=>{ URL.revokeObjectURL(img.src); c.remove(); mcount(); maiCount(); };
   foot.append(inp,d,x);
   const l=c.lnk=document.createElement('div'); l.className='u'; l.hidden=true; l.title='Click để copy link';
   l.onclick=()=>copy(c.link).then(ok=>{ l.classList.toggle('ok',ok); l.textContent=ok?'đã copy link':'copy không được';
@@ -1171,7 +1190,7 @@ let mrun=0, mpdf='menu', mjs=null;   // mrun: chọn file mới giữa chừng t
 async function menuPdf(file){
   if(!file) return;
   const run=++mrun; mgrid.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
-  mgrid.replaceChildren(); mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=true; mjs=null;
+  mgrid.replaceChildren(); mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=mai.hidden=true; mjs=null;
   mpdf=slug((file.name||'').replace(/\.pdf$/i,''))||'menu';
   try{
     mhint.textContent='Đang nạp bộ đọc PDF…';
@@ -1201,27 +1220,50 @@ async function menuPdf(file){
       const texts=TX[pn].filter(keep), fr=menuFrames(await page.getOperatorList(),vp,pdfjs.OPS,pdfjs.Util,texts);
       if(!fr.length) continue;
       const sec=menuHead(texts).map(t=>t.s.trim()).join(' ');
-      const v=page.getViewport({scale:MZ}), cv=document.createElement('canvas');
-      cv.width=v.width; cv.height=v.height;
-      await page.render({canvasContext:cv.getContext('2d'),viewport:v}).promise;
       for(const b of fr){
-        // lùi vào 1pt mỗi cạnh để không dính viền khung / nền trang
-        const x=Math.round((b[0]+1)*MZ), y=Math.round((b[1]+1)*MZ), w=Math.round((b[2]-b[0]-2)*MZ), h=Math.round((b[3]-b[1]-2)*MZ);
-        const c=document.createElement('canvas'); c.width=w; c.height=h;
-        c.getContext('2d').drawImage(cv,x,y,w,h,0,0,w,h);
+        const c=await menuCrop(page,b), w=c.width, h=c.height;
         const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9)), name=menuName(b,texts,used);
         if(run!==mrun) return;
         if(name) named++;
-        mgrid.append(menuCard(blob,pn,sec,name,w,h));
+        const card=menuCard(blob,pn,sec,name,w,h); mgrid.append(card);
+        if(c.low){ card.low=1; card.querySelector('.st').textContent+=' · mờ'; }
       }
     }
     const n=mgrid.children.length;
     mhint.textContent = n ? n+' ảnh, '+named+' ảnh tự nhận được tên món. Rà lại tên trước khi tải; ảnh ghép, ảnh trang trí thì bỏ tích.'
       : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
     if(items) mhint.textContent+=' JSON menu: '+items+' món có giá, '+mjs.menus[0].content.sections.length+' mục.';
-    mcount(); mdrop0.hidden=n===named;
+    mcount(); mdrop0.hidden=n===named; maiCount();
   }catch(e){ if(run===mrun) mhint.textContent='Không đọc được file PDF này ('+e.message+').'; }
 }
+// Cắt một khung ảnh món. Vẽ khung ở đúng độ nét ảnh gốc (b.d px/pt, cạnh dài tối đa 2400px): pdf.js phóng ảnh quá
+// ~1.33 lần thì tắt làm mượt, ảnh nhỏ bị vỡ ô vuông. Ảnh gốc thưa hơn MZ thì tự phóng lên MZ bằng nội suy chất lượng
+// cao rồi làm nét nhẹ (unsharp mask). Lùi vào 1pt mỗi cạnh để không dính viền khung / nền trang.
+async function menuCrop(page,b){
+  const L=Math.max(b[2]-b[0],b[3]-b[1]), s0=Math.min(b.d||MZ,2400/L), s=Math.max(MZ,s0), cv=(w,h)=>{
+    const c=document.createElement('canvas'); c.width=Math.max(1,Math.round(w)); c.height=Math.max(1,Math.round(h)); return c; };
+  const r=cv((b[2]-b[0]-2)*s0,(b[3]-b[1]-2)*s0);
+  await page.render({canvasContext:r.getContext('2d'),viewport:page.getViewport({scale:s0,offsetX:-(b[0]+1)*s0,offsetY:-(b[1]+1)*s0})}).promise;
+  if(s<=s0*1.05) return r;
+  const c=cv(r.width*s/s0,r.height*s/s0), x=c.getContext('2d',{willReadFrequently:true}), bl=cv(c.width,c.height), y=bl.getContext('2d');
+  c.low=s>=2*s0;   // phải phóng ≥2 lần: ảnh gốc quá thưa, nhờ AI ngoài làm nét (nút mai)
+  x.imageSmoothingQuality='high'; x.drawImage(r,0,0,c.width,c.height);
+  y.filter='blur(1px)'; y.drawImage(c,0,0);   // trình duyệt không có ctx.filter thì bl = c, làm nét thành không đổi
+  const o=x.getImageData(0,0,c.width,c.height), B=y.getImageData(0,0,c.width,c.height).data, D=o.data;
+  for(let i=0;i<D.length;i++) if((i&3)!==3) D[i]=D[i]+.6*(D[i]-B[i]);   // Uint8ClampedArray tự kẹp 0..255
+  x.putImageData(o,0,0); return c;
+}
+// Ảnh gốc quá thưa điểm ảnh thì làm nét thường không cứu được -> copy câu lệnh để người dùng gửi kèm ảnh cho AI tạo ảnh
+// (Gemini, ChatGPT). Chạy mô hình ngay trong trình duyệt đã thử: GPU yếu mất WebGL context, CPU ~2,5 phút/ảnh.
+const MAI_PROMPT=`Làm nét và tăng độ phân giải các ảnh món ăn đính kèm (ảnh cắt từ menu PDF nên bị mờ, vỡ điểm). Yêu cầu:
+- Giữ nguyên bố cục, góc chụp, màu sắc, món ăn, bát đĩa và phông nền; không thêm, bớt hay đổi món.
+- Chữ, logo in trên ảnh (nếu có) giữ nguyên, không bịa chữ mới.
+- Khử nhiễu và vết nén JPEG, làm rõ chi tiết bề mặt món ăn một cách tự nhiên, không bệt như tranh vẽ.
+- Xuất ảnh cùng tỉ lệ khung, cạnh dài khoảng 2000 px. Gửi nhiều ảnh thì trả từng ảnh riêng, đúng thứ tự.`;
+function maiCount(){ const n=[...mgrid.children].filter(c=>c.low).length; mai.hidden=!n; mai.textContent='Copy prompt làm nét ('+n+' ảnh mờ)'; }
+mai.onclick=()=>copy(MAI_PROMPT).then(ok=>{ mhint.textContent=ok
+  ? 'Đã copy prompt. Tải các ảnh ghi “mờ”, dán prompt kèm ảnh vào Gemini hoặc ChatGPT (Claude không xuất được ảnh).'
+  : 'Copy không được, trình duyệt chặn quyền clipboard.'; });
 document.getElementById('mpick').onclick=()=>mf.click();
 mf.onchange=()=>{ menuPdf(mf.files[0]); mf.value=''; };
 mdrop.addEventListener('dragover',e=>{ e.preventDefault(); mdrop.classList.add('drag'); });

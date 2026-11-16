@@ -68,13 +68,23 @@ Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng �
 - Khung ảnh lấy từ chính lệnh vẽ trong PDF (vị trí ảnh giao với vùng clip), nên cắt đúng mép khung, không lẫn chữ hay nền.
   Bỏ qua icon, ảnh bị che hết và ảnh nền kín trang (trừ trang không có chữ nào — trang chỉ in một ảnh món; bìa cũng
   lọt vào, bỏ chọn tay). Ảnh vẽ trùng hai lần giữ một; từ 4 mảnh khít nhau trở lên (hình trang trí bị cắt thành lưới ô)
-  gộp thành một khung; khung bị chữ phủ quá 8% diện tích là tấm nền sau đoạn văn, bỏ.
+  gộp thành một khung; khung bị chữ phủ quá 8% diện tích là tấm nền sau đoạn văn, bỏ. Khung chứa trọn một khung khác
+  chiếm ≥ 30% nó (ảnh món cắt nền chồng nhau, ảnh trên tấm nền nửa trang) thì giữ khung trong.
+- Độ nét: mỗi khung được vẽ riêng ở đúng độ phân giải của ảnh gốc trong PDF (cạnh dài tối đa 2400px), không phóng cố
+  định ×3 như trước — pdf.js phóng ảnh quá ~1,33 lần thì tắt làm mượt nên ảnh gốc thưa (đa số menu chỉ 1–2 px/pt) bị
+  vỡ ô vuông. Ảnh gốc thưa hơn 3 px/pt được phóng lên ×3 bằng nội suy chất lượng cao rồi làm nét nhẹ (unsharp mask).
+  Không thêm được chi tiết mà ảnh gốc không có. Ảnh phải phóng ≥2 lần (gốc ≤1,5 px/pt) ghi “mờ” ở góc thẻ, kèm nút
+  **Copy prompt làm nét** để gửi ảnh cho AI tạo ảnh (Gemini, ChatGPT). Chạy ESRGAN ngay trong trình duyệt đã thử và bỏ:
+  GPU yếu mất WebGL context sau 1–2 ảnh (Chrome chặn WebGL luôn cho trang), CPU mất ~2,5 phút/ảnh.
 - Tên món, thử lần lượt: ảnh có số in đè (`23`) thì lấy món đánh số `23. …` trên trang; tên in đè trong ảnh mà chữ to hơn
   dòng dưới ảnh; dòng chữ to nhất in ngay dưới ảnh; nhãn gần ảnh nhất (trên, trái hoặc in đè lên ảnh, trong
   40pt, bỏ qua dòng thuộc món có giá ở cột bên); không có nữa thì dòng ngay bên phải. Bỏ giá tiền và tiêu đề trang.
   Mảnh chữ Việt pdf.js tách rời (`B`,`ò`) mà sát nhau thì nối liền, không chèn dấu cách.
   Tên in hoa thì dừng ở dòng mô tả cùng cỡ chữ; bỏ số thứ tự `23.` và giá `— 280` dính ở đầu/cuối. Giá dạng `VND 220`,
   `$90`, `500/100gr`, tên mục `MEAT - CÁC MÓN THỊT` và chữ chạy theo đường cong bị vỡ (`T U HT`) không lấy làm tên.
+  Dưới ảnh chỉ xét khối chữ sát ảnh nhất (khoảng trống dọc là sang khối khác, vd tiêu đề mục kế tiếp). Tên chỉ có chữ
+  Hán/Hàn thì nối dòng tên Latin ngay dưới (`涼拌青瓜海蜇 Aromatic Sesame Jelly Fish Salad`), dừng ở mã dị ứng `(S,G)`.
+  Không lấy: câu mô tả kết thúc bằng dấu chấm, hàng chữ nhiều cột cách xa nhau, chú giải in lặp ở hai nửa trang đôi.
   Dòng lặp lại trên quá nửa số trang (hotline, website ở chân trang) và đoạn dài quá 60 ký tự cũng bị loại.
   Không chắc thì để trống — sửa/điền trong ô dưới ảnh.
 - **Chọn ảnh để tải**: mỗi ảnh có ô tích (mặc định tích hết). **Bỏ chọn tất cả / Chọn tất cả** và
@@ -103,6 +113,11 @@ Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng �
   → 6/5 (lá trang trí cắt lưới ô), KOSHIMA 31/18 → 32/21, Indigo đọc được tên in đè, InterContinental Hà Nội bỏ hết tên
   rác `VND 220` (caption dưới ảnh là chữ dạng đường vẽ, không đọc được). Menu nhiều món chung một ảnh nền (Long Triều
   Dimsum) thì không tách được.
+  Lượt 2 (19 menu: phở, BBQ Hàn, Thái, dim sum, cafe, Nhật; ~10 menu có ảnh): Shangri-La Bangkok dim sum 37/37 tên song ngữ
+  (trước chỉ chữ Hán, 1 tên là tiêu đề mục), Nha Trang đồ uống có thêm tên tiếng Anh, Dusit Signature Thai 12/11 → 12/0
+  (ảnh không có chú thích, trước toàn lấy nhầm chú giải ký hiệu), CoverManager (ảnh bát cắt nền) 100/62 → 52/33 hết khung
+  chồng chéo, Seoul Kitchen 45/22 → 43/19 (bỏ khung nền và tên ghép 2 món). Menu ảnh xếp tự do, tên in lệch xa ảnh
+  (CoverManager, Vignette) vẫn sai/trống một phần.
 - Chỉ dùng được với PDF xuất từ phần mềm thiết kế (có lớp chữ, ảnh là đối tượng riêng). PDF scan thì không tách được.
 - Chạy hoàn toàn trong trình duyệt (trừ nút Tạo link); lần đầu mở tab cần mạng để nạp pdf.js từ cdnjs (thư viện ngoài
   duy nhất của trang).
