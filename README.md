@@ -198,7 +198,10 @@ biết có nó); mở lại trang vẫn thấy các link còn hạn, mục quá 
 **Mã lịch sử** (thay cho tài khoản): lần up đầu trang tạo mã 12 ký tự ngẫu nhiên (`gpv-upid`, dạng `ABCD-EFGH-JKMN`, bỏ
 I L O 0 1). Mỗi lần up gửi kèm `&id=&fname=&meta=`, relay ghi vào `hist/<mã>.json`; `GET /hist?id=` không cần khoá
 (mã ~59 bit là chìa) trả các ảnh còn hạn. Máy khác nhập mã → trang gộp lịch sử máy chủ với bản trong trình duyệt và
-từ đó up tiếp theo mã đó. Máy chủ không trả lời thì vẫn hiện bản trong trình duyệt. **Xoá lịch sử** xoá danh sách và
+từ đó up tiếp theo mã đó. Máy chủ không trả lời thì vẫn hiện bản trong trình duyệt. Link chỉ có trong trình duyệt
+(up trước khi có mã, hoặc có sẵn ở máy vừa nhập mã) được đưa lên mã qua `POST /hist?id=` (cần khoá): relay chỉ nhận
+link `/i/` còn file trên đĩa, hạn tính theo file chứ không theo trình duyệt. Người đã có lịch sử + khoá thì mở trang
+là có mã ngay, khỏi đợi lần up sau. **Xoá lịch sử** xoá danh sách và
 quên mã trên trình duyệt này (có hỏi lại); file lịch sử trên máy chủ tự xoá khi mã không up gì thêm trong 7 ngày.
 
 ## Tải video TikTok / Facebook / YouTube / Instagram / Google Maps

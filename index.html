@@ -1922,8 +1922,18 @@ async function uhsync(){
   try{
     const r=await fetch(IMGUP+'/hist?id='+v,{signal:AbortSignal.timeout(15000)});
     if(!r.ok) throw new Error(await r.text()||'HTTP '+r.status);
-    const m=new Map(); for(const e of [...uhget(),...await r.json()]) if(!m.has(e.url)) m.set(e.url,e);
+    const fk=e=>e.url.split('/i/').pop();   // so theo tên file ảnh: cùng ảnh dù tên miền trong link khác nhau
+    const srv=await r.json(), have=new Set(srv.map(fk)), loc=uhget();
+    const m=new Map(); for(const e of [...loc,...srv]) if(!m.has(fk(e))) m.set(fk(e),e);
     const h=[...m.values()].sort((a,b)=>b.expires-a.expires); uhsave(h); uhshow(h); uidmsg.textContent='';
+    // Link chỉ có trong trình duyệt (up trước khi có mã, hoặc ở máy này trước khi nhập mã): đưa lên mã để máy khác thấy.
+    const miss=loc.filter(e=>!have.has(fk(e)) && e.url.startsWith(IMGUP+'/i/')), k=ukey.value.trim();
+    if(miss.length && k){
+      const p=await fetch(IMGUP+'/hist?id='+v,{method:'POST',body:JSON.stringify(miss.map(({url,name,meta})=>({url,name,meta}))),
+        headers:{'X-Key':k,'Content-Type':'application/json'},signal:AbortSignal.timeout(15000)});
+      if(p.ok){ const n=(await p.json()).added; uidmsg.textContent=n ? 'Đã đưa '+n+' link cũ vào mã này.' : ''; }
+      else uidmsg.textContent='Chưa đưa được link cũ vào mã ('+(p.status===403?'sai khoá máy chủ ảnh':'HTTP '+p.status)+').';
+    }
   }catch(e){ uidmsg.textContent='Không lấy được lịch sử trên máy chủ ('+e.message+'), đang hiện bản lưu trong trình duyệt.'; }
 }
 uidcp.onclick=()=>copy(uidfmt(uidget())).then(ok=>{ uidcp.textContent=ok?'Đã copy':'Copy không được'; setTimeout(()=>uidcp.textContent='Copy mã',900); });
@@ -1932,7 +1942,8 @@ document.getElementById('uidf').onsubmit=e=>{
   if(!/^[A-HJKMNP-Z2-9]{12}$/.test(v)){ uidmsg.textContent='Mã gồm 12 chữ và số, dạng ABCD-EFGH-JKMN.'; return; }
   inp.value=''; uidset(v); uhsync();
 };
-(()=>{ const h=uhget(); uhsave(h); uhshow(h); uidshow(); uhsync(); })();
+// Đã có lịch sử + khoá mà chưa có mã (người dùng từ trước khi có mã): tạo mã luôn, uhsync đưa link cũ lên.
+(()=>{ const h=uhget(); uhsave(h); uhshow(h); if(h.length && ukey.value.trim() && !uidget()) uidnew(); uidshow(); uhsync(); })();
 // Xoá phải quên luôn mã, không thì lần mở trang sau lịch sử trên máy chủ lại gộp về.
 uhclr.onclick=()=>{
   const v=uidget();
@@ -1952,7 +1963,8 @@ function uadd(files){
       try{
         const b=await toJpeg(f); await img.decode().catch(()=>{});
         const meta=[img.naturalWidth ? img.naturalWidth+'×'+img.naturalHeight : '', kb(b.size)].filter(Boolean).join(' · ');
-        const r=await fetch(IMGUP+'/up?name='+encodeURIComponent(slug(f.name.replace(/\.[^.]*$/,'')))+'&id='+(uidget()||uidnew())
+        const fresh=!uidget(), uid=uidget()||uidnew();
+        const r=await fetch(IMGUP+'/up?name='+encodeURIComponent(slug(f.name.replace(/\.[^.]*$/,'')))+'&id='+uid
           +'&fname='+encodeURIComponent(f.name)+'&meta='+encodeURIComponent(meta),{method:'POST',body:b,
           headers:{'X-Key':ukey.value.trim(),'Content-Type':'image/jpeg'},signal:AbortSignal.timeout(60000)});
         if(r.status===403){ ukeyd.open=true; throw new Error('sai khoá'); }
@@ -1961,7 +1973,7 @@ function uadd(files){
         const e={url:j.url, expires:j.expires, name:f.name, meta};
         udone({li,a,st,cb},e,b===f?'':'đã đổi sang JPEG · ');
         uhsave([e,...uhget()]); uhadd(e); uhsum(uhl.children.length);
-        ucount();
+        ucount(); if(fresh) uhsync();   // mã vừa tạo: đưa luôn link cũ trong trình duyệt lên mã
       }catch(e){ cb.textContent='Lỗi: '+e.message; cb.classList.add('bad'); li.title=f.name+'\nLỗi: '+e.message; }
     });
   }

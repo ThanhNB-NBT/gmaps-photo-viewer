@@ -39,6 +39,21 @@ def hist_load(hid, now):
         return []
 
 
+def hist_put(hid, new, now):
+    """Gộp bản ghi mới vào lịch sử của mã (trùng link thì giữ bản cũ), mới nhất trước, tối đa 1000."""
+    os.makedirs(HIST, exist_ok=True)
+    p = os.path.join(HIST, hid + '.json')
+    with HLOCK:
+        old = hist_load(hid, now)
+        seen = {e['url'] for e in old}
+        add = [e for e in new if e['url'] not in seen and not seen.add(e['url'])]
+        h = sorted(add + old, key=lambda e: -e['expires'])[:1000]
+        with open(p + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump(h, f, ensure_ascii=False)
+        os.replace(p + '.tmp', p)
+    return len(add)
+
+
 class H(BaseHTTPRequestHandler):
     def text(self, code, msg):
         b = msg.encode()
@@ -106,9 +121,11 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        if not self.path.startswith('/up') or not hmac.compare_digest(self.headers.get('X-Key', ''), KEY):
+        if not self.path.startswith(('/up', '/hist?')) or not hmac.compare_digest(self.headers.get('X-Key', ''), KEY):
             self.send_response(403); self.cors(); self.end_headers(); return
         n = int(self.headers.get('Content-Length') or 0)
+        if self.path.startswith('/hist?'):
+            return self.hist_add(n)
         if not 0 < n <= MAXUP:
             return self.text(413, 'Ảnh phải dưới 10 MB')
         body = self.rfile.read(n)
@@ -136,14 +153,7 @@ class H(BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
         hid = (q.get('id') or [''])[0]
         if HID.fullmatch(hid):
-            e = {**rec, 'name': (q.get('fname') or [''])[0][:120], 'meta': (q.get('meta') or [''])[0][:40]}
-            os.makedirs(HIST, exist_ok=True)
-            p = os.path.join(HIST, hid + '.json')
-            with HLOCK:
-                h = [e] + hist_load(hid, now)
-                with open(p + '.tmp', 'w', encoding='utf-8') as f:
-                    json.dump(h[:1000], f, ensure_ascii=False)
-                os.replace(p + '.tmp', p)
+            hist_put(hid, [{**rec, 'name': (q.get('fname') or [''])[0][:120], 'meta': (q.get('meta') or [''])[0][:40]}], now)
             for f in os.scandir(HIST):  # mã không up thêm gì trong 7 ngày thì mọi ảnh của nó đã hết hạn
                 try:
                     if now - f.stat().st_mtime > TTL:
@@ -151,6 +161,37 @@ class H(BaseHTTPRequestHandler):
                 except FileNotFoundError:
                     pass
         b = json.dumps(rec).encode()
+        self.send_response(200)
+        self.cors()
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    # POST /hist?id=<mã> (cần X-Key), thân = [{url, name, meta}]: đưa link đã up từ trước khi có mã vào lịch sử.
+    # Chỉ nhận link ảnh của chính máy này còn trên đĩa; hạn tính từ file thật, không tin hạn trình duyệt gửi.
+    def hist_add(self, n):
+        hid = (urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('id') or [''])[0]
+        if not HID.fullmatch(hid):
+            return self.text(400, 'Mã không hợp lệ')
+        if not 0 < n <= 256 << 10:
+            return self.text(413, 'Danh sách trống hoặc quá dài')
+        try:
+            items = json.loads(self.rfile.read(n))
+            assert isinstance(items, list)
+        except (ValueError, AssertionError):
+            return self.text(400, 'Cần danh sách JSON')
+        now, new = time.time(), []
+        for it in items[:1000]:
+            m = isinstance(it, dict) and IMGNAME.fullmatch(urllib.parse.urlsplit(str(it.get('url', ''))).path)
+            try:
+                left = m and TTL - (now - os.stat(os.path.join(IMG, m[1])).st_mtime)
+            except FileNotFoundError:
+                left = 0
+            if left and left > 0:
+                new.append({'url': f'https://{self.headers["Host"]}/i/{m[1]}', 'expires': int(now + left),
+                            'name': str(it.get('name', ''))[:120], 'meta': str(it.get('meta', ''))[:40]})
+        b = json.dumps({'added': hist_put(hid, new, now) if new else 0}).encode()
         self.send_response(200)
         self.cors()
         self.send_header('Content-Type', 'application/json')
