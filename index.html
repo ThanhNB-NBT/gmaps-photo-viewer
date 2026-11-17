@@ -267,7 +267,12 @@
   #udrop.drag{outline:2px dashed var(--water)}
   #uhd{margin-top:22px}
   #uhd summary{cursor:pointer;width:fit-content;color:var(--mut);font-weight:600}
-  #uhclr{margin-left:8px;padding:5px 11px;font-size:13px}
+  #uhd .uid{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 8px;font-size:13px}
+  #uhd .uid button{padding:5px 11px;font-size:13px}
+  #uidf{display:flex;gap:6px}
+  #uidin{width:180px;font-size:13px;padding:6px 10px;text-transform:uppercase}
+  #uidin::placeholder{text-transform:none}
+  #uidmsg:empty{display:none}
   .ucp{flex:1;min-width:0;padding:9px 12px;border:0;background:transparent;color:var(--water);text-align:left;
     font:600 12.5px var(--ui);cursor:copy;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ucp:not(:disabled):hover{background:var(--wash)}
@@ -488,8 +493,15 @@
 <ul class="grid sm" id="ulist"></ul>
 <details id="uhd">
   <summary id="uhs"></summary>
-  <p class="hint">Chỉ lưu trong trình duyệt này, không gửi đi đâu; ảnh quá 7 ngày tự biến mất khỏi danh sách.
-    <button id="uhclr" type="button">Xoá lịch sử</button></p>
+  <p class="hint">Lưu trong trình duyệt này và theo <b>mã lịch sử</b> trên máy chủ ảnh: sang máy khác nhập mã là xem lại được.
+    Ảnh quá 7 ngày tự biến mất khỏi danh sách.</p>
+  <div class="uid">
+    <span>Mã của bạn: <b id="uidv"></b></span>
+    <button id="uidcp" type="button">Copy mã</button>
+    <form id="uidf"><input id="uidin" placeholder="Nhập mã từ máy khác" autocomplete="off" spellcheck="false" aria-label="Mã lịch sử"><button>Mở</button></form>
+    <button id="uhclr" type="button">Xoá lịch sử</button>
+  </div>
+  <p class="hint" id="uidmsg" aria-live="polite"></p>
   <ul class="grid sm" id="uhl"></ul>
 </details>
 </section>
@@ -1892,11 +1904,42 @@ const uhget=()=>{ try{ return (JSON.parse(localStorage.getItem(UHK))||[]).filter
 const uhsave=h=>{ try{ localStorage.setItem(UHK,JSON.stringify(h.slice(0,500))); }catch(e){} };
 const uhclr=document.getElementById('uhclr');
 // Luôn hiện mục (ẩn khi rỗng thì người dùng không biết có tính năng này); rỗng thì nói rõ từ giờ sẽ lưu.
-const uhsum=n=>{ document.getElementById('uhs').textContent='Ảnh đã up trên trình duyệt này, còn hạn ('+n+')'
+const uhsum=n=>{ document.getElementById('uhs').textContent='Lịch sử ảnh đã up, còn hạn ('+n+')'
   +(n?'':' – chưa có, ảnh bạn up từ giờ sẽ hiện ở đây'); uhclr.hidden=!n; };
 function uhadd(e){ const t=utile(uhl,e.name,e.url,uhl.children.length+1); uhl.prepend(t.li); udone(t,e); }   // mới nhất lên đầu, số lớn nhất
-(()=>{ const h=uhget(); uhsave(h); uhsum(h.length); h.reverse().forEach(uhadd); })();
-uhclr.onclick=()=>{ try{ localStorage.removeItem(UHK); }catch(e){} uhl.replaceChildren(); uhsum(0); };
+const uhshow=h=>{ uhl.replaceChildren(); h.slice().reverse().forEach(uhadd); uhsum(h.length); };
+// Mã lịch sử: 12 ký tự ngẫu nhiên tạo ở lần up đầu, máy chủ ghi ảnh theo mã; máy khác nhập mã thì gộp lịch sử về.
+const UIDK='gpv-upid', UIDA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // bỏ I L O 0 1 cho khỏi gõ nhầm
+const uidv=document.getElementById('uidv'), uidcp=document.getElementById('uidcp'), uidmsg=document.getElementById('uidmsg');
+const uidget=()=>{ try{ return localStorage.getItem(UIDK)||''; }catch(e){ return ''; } };
+const uidfmt=v=>v.replace(/(.{4})(?=.)/g,'$1-');
+function uidshow(){ const v=uidget(); uidv.textContent=v ? uidfmt(v) : 'chưa có, tạo ở lần up đầu'; uidcp.hidden=!v; }
+function uidset(v){ try{ v ? localStorage.setItem(UIDK,v) : localStorage.removeItem(UIDK); }catch(e){} uidshow(); }
+const uidnew=()=>{ const v=[...crypto.getRandomValues(new Uint8Array(12))].map(x=>UIDA[x%UIDA.length]).join(''); uidset(v); return v; };
+async function uhsync(){
+  const v=uidget(); if(!v) return;
+  uidmsg.textContent='Đang lấy lịch sử theo mã…';
+  try{
+    const r=await fetch(IMGUP+'/hist?id='+v,{signal:AbortSignal.timeout(15000)});
+    if(!r.ok) throw new Error(await r.text()||'HTTP '+r.status);
+    const m=new Map(); for(const e of [...uhget(),...await r.json()]) if(!m.has(e.url)) m.set(e.url,e);
+    const h=[...m.values()].sort((a,b)=>b.expires-a.expires); uhsave(h); uhshow(h); uidmsg.textContent='';
+  }catch(e){ uidmsg.textContent='Không lấy được lịch sử trên máy chủ ('+e.message+'), đang hiện bản lưu trong trình duyệt.'; }
+}
+uidcp.onclick=()=>copy(uidfmt(uidget())).then(ok=>{ uidcp.textContent=ok?'Đã copy':'Copy không được'; setTimeout(()=>uidcp.textContent='Copy mã',900); });
+document.getElementById('uidf').onsubmit=e=>{
+  e.preventDefault(); const inp=document.getElementById('uidin'), v=inp.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!/^[A-HJKMNP-Z2-9]{12}$/.test(v)){ uidmsg.textContent='Mã gồm 12 chữ và số, dạng ABCD-EFGH-JKMN.'; return; }
+  inp.value=''; uidset(v); uhsync();
+};
+(()=>{ const h=uhget(); uhsave(h); uhshow(h); uidshow(); uhsync(); })();
+// Xoá phải quên luôn mã, không thì lần mở trang sau lịch sử trên máy chủ lại gộp về.
+uhclr.onclick=()=>{
+  const v=uidget();
+  if(v && !confirm('Xoá lịch sử và quên mã '+uidfmt(v)+' trên trình duyệt này?\nMuốn xem lại sau thì chép mã trước khi xoá.')) return;
+  try{ localStorage.removeItem(UHK); }catch(e){} uidset(''); uhl.replaceChildren(); uhsum(0);
+  uidmsg.textContent=v ? 'Đã xoá trên trình duyệt này. Ảnh trên máy chủ vẫn tự hết hạn sau 7 ngày; nhập lại mã để xem lại.' : '';
+};
 let uq=Promise.resolve();   // tải lần lượt từng ảnh: mạng nhà upload chậm, dồn cùng lúc thì ảnh nào cũng dễ quá 60 giây
 function uadd(files){
   files=[...files].filter(f=>f.type.startsWith('image/'));
@@ -1907,13 +1950,15 @@ function uadd(files){
     uq=uq.then(async()=>{
       cb.textContent='Đang tải lên…';
       try{
-        const b=await toJpeg(f);
-        const r=await fetch(IMGUP+'/up?name='+encodeURIComponent(slug(f.name.replace(/\.[^.]*$/,''))),{method:'POST',body:b,
+        const b=await toJpeg(f); await img.decode().catch(()=>{});
+        const meta=[img.naturalWidth ? img.naturalWidth+'×'+img.naturalHeight : '', kb(b.size)].filter(Boolean).join(' · ');
+        const r=await fetch(IMGUP+'/up?name='+encodeURIComponent(slug(f.name.replace(/\.[^.]*$/,'')))+'&id='+(uidget()||uidnew())
+          +'&fname='+encodeURIComponent(f.name)+'&meta='+encodeURIComponent(meta),{method:'POST',body:b,
           headers:{'X-Key':ukey.value.trim(),'Content-Type':'image/jpeg'},signal:AbortSignal.timeout(60000)});
         if(r.status===403){ ukeyd.open=true; throw new Error('sai khoá'); }
         if(!r.ok) throw new Error(await r.text()||'HTTP '+r.status);
         const j=await r.json();
-        const e={url:j.url, expires:j.expires, name:f.name, meta:[img.naturalWidth ? img.naturalWidth+'×'+img.naturalHeight : '', kb(b.size)].filter(Boolean).join(' · ')};
+        const e={url:j.url, expires:j.expires, name:f.name, meta};
         udone({li,a,st,cb},e,b===f?'':'đã đổi sang JPEG · ');
         uhsave([e,...uhget()]); uhadd(e); uhsum(uhl.children.length);
         ucount();

@@ -9,7 +9,9 @@
 # Chạy: FB_RELAY_KEY=<khoá> python3 fbrelay.py   (nghe 127.0.0.1:8787, mở ra ngoài qua Cloudflare Tunnel)
 # POST /up?name=<slug> (thân = 1 ảnh JPEG, cần X-Key): lưu vào img/, trả link công khai /i/<mã>.jpg sống 7 ngày
 # để đưa cho bên thứ 3 / CDN. Hết hạn thì 404 và xoá; mỗi lần tải lên dọn luôn ảnh quá hạn.
-import hmac, json, os, re, secrets, shutil, subprocess, tempfile, time, urllib.parse, urllib.request
+# Lịch sử theo mã: /up kèm &id=<mã 12 ký tự>&fname=&meta= thì ghi {url, hạn, tên, cỡ} vào hist/<mã>.json;
+# GET /hist?id=<mã> (không cần khoá — mã ngẫu nhiên ~59 bit chính là chìa) trả các ảnh còn hạn, mới nhất trước.
+import hmac, json, os, re, secrets, shutil, subprocess, tempfile, threading, time, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 KEY = os.environ['FB_RELAY_KEY']
@@ -24,6 +26,17 @@ YTDLP = [BIN + '/yt-dlp', '--no-playlist', '--no-warnings', '-f', 'bv*+ba/b', '-
 IMG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'img')
 TTL, MAXUP, QUOTA = 7 * 86400, 10 << 20, 2 << 30   # sống 7 ngày; 10 MB mỗi ảnh; tổng thư mục tối đa 2 GB
 IMGNAME = re.compile(r'/i/([\w-]{12,80}\.jpg)')
+HIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hist')
+HID = re.compile(r'[A-HJKMNP-Z2-9]{12}')   # bảng chữ bỏ I L O 0 1 cho khỏi đọc nhầm khi gõ tay
+HLOCK = threading.Lock()                     # một tiến trình, nhiều luồng: khoá chung cho đọc-sửa-ghi file lịch sử
+
+
+def hist_load(hid, now):
+    try:
+        with open(os.path.join(HIST, hid + '.json'), encoding='utf-8') as f:
+            return [e for e in json.load(f) if e.get('expires', 0) > now]
+    except (FileNotFoundError, ValueError):
+        return []
 
 
 class H(BaseHTTPRequestHandler):
@@ -119,7 +132,25 @@ class H(BaseHTTPRequestHandler):
         with open(tmp, 'wb') as f:
             f.write(body)
         os.replace(tmp, os.path.join(IMG, name))
-        b = json.dumps({'url': f'https://{self.headers["Host"]}/i/{name}', 'expires': int(now + TTL)}).encode()
+        rec = {'url': f'https://{self.headers["Host"]}/i/{name}', 'expires': int(now + TTL)}
+        q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        hid = (q.get('id') or [''])[0]
+        if HID.fullmatch(hid):
+            e = {**rec, 'name': (q.get('fname') or [''])[0][:120], 'meta': (q.get('meta') or [''])[0][:40]}
+            os.makedirs(HIST, exist_ok=True)
+            p = os.path.join(HIST, hid + '.json')
+            with HLOCK:
+                h = [e] + hist_load(hid, now)
+                with open(p + '.tmp', 'w', encoding='utf-8') as f:
+                    json.dump(h[:1000], f, ensure_ascii=False)
+                os.replace(p + '.tmp', p)
+            for f in os.scandir(HIST):  # mã không up thêm gì trong 7 ngày thì mọi ảnh của nó đã hết hạn
+                try:
+                    if now - f.stat().st_mtime > TTL:
+                        os.unlink(f.path)
+                except FileNotFoundError:
+                    pass
+        b = json.dumps(rec).encode()
         self.send_response(200)
         self.cors()
         self.send_header('Content-Type', 'application/json')
@@ -160,6 +191,18 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/i/'):
             return self.img()
+        if self.path.startswith('/hist?'):
+            hid = (urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('id') or [''])[0]
+            if not HID.fullmatch(hid):
+                return self.text(400, 'Mã không hợp lệ')
+            b = json.dumps(hist_load(hid, time.time()), ensure_ascii=False).encode()
+            self.send_response(200)
+            self.cors()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', str(len(b)))
+            self.end_headers()
+            return self.wfile.write(b)
         if not hmac.compare_digest(self.headers.get('X-Key', ''), KEY):
             return self.send_error(403)
         q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)

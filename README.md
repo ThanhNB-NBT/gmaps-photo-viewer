@@ -193,8 +193,13 @@ Tab **Up ảnh**: kéo thả, dán (Ctrl+V) hoặc chọn nhiều ảnh, mỗi �
 nên ảnh khác (PNG, WebP…) được vẽ lại ra JPEG trong trình duyệt (chỗ trong suốt thành nền trắng, GIF mất chuyển động),
 ảnh quá 10 MB thu nhỏ dần cho vừa. Mỗi ảnh up xong được ghi vào lịch sử trong `localStorage` (`gpv-uphist`: link,
 hạn, tên, cỡ) và hiện ngay ở mục **Ảnh đã up trên trình duyệt này** (mục luôn hiện, kể cả khi trống, để người dùng
-biết có nó); mở lại trang vẫn thấy các link còn hạn, mục quá hạn tự bị bỏ lúc mở trang. Lịch sử chỉ có trên đúng máy + trình duyệt đã up (không có tài khoản); nút **Xoá lịch sử** chỉ xoá
-danh sách, ảnh trên máy chủ vẫn tự hết hạn sau 7 ngày.
+biết có nó); mở lại trang vẫn thấy các link còn hạn, mục quá hạn tự bị bỏ lúc mở trang.
+
+**Mã lịch sử** (thay cho tài khoản): lần up đầu trang tạo mã 12 ký tự ngẫu nhiên (`gpv-upid`, dạng `ABCD-EFGH-JKMN`, bỏ
+I L O 0 1). Mỗi lần up gửi kèm `&id=&fname=&meta=`, relay ghi vào `hist/<mã>.json`; `GET /hist?id=` không cần khoá
+(mã ~59 bit là chìa) trả các ảnh còn hạn. Máy khác nhập mã → trang gộp lịch sử máy chủ với bản trong trình duyệt và
+từ đó up tiếp theo mã đó. Máy chủ không trả lời thì vẫn hiện bản trong trình duyệt. **Xoá lịch sử** xoá danh sách và
+quên mã trên trình duyệt này (có hỏi lại); file lịch sử trên máy chủ tự xoá khi mã không up gì thêm trong 7 ngày.
 
 ## Tải video TikTok / Facebook / YouTube / Instagram / Google Maps
 
