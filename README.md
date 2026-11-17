@@ -135,6 +135,11 @@ tên rồi bỏ qua, các file khác vẫn đọc tiếp.
 Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một hoặc nhiều API key (mỗi dòng một key, lấy ở
 [AI Studio](https://aistudio.google.com/apikey)), chọn model. Không điền key thì mọi thứ chạy như cũ.
 
+- **Ảnh chụp menu** (JPEG/PNG/WebP…, chọn hoặc kéo thả nhiều ảnh, lẫn với PDF cũng được): ảnh không có ảnh món nhúng
+  hay lớp chữ nên không tự cắt / tự đọc được, chỉ để Gemini / Claude đọc. Mọi ảnh chọn cùng lúc gộp thành **một menu
+  nhiều trang**, xếp theo tên file (số tăng dần: `IMG_9` trước `IMG_10`); ảnh trình duyệt không mở được (HEIC trên
+  Chrome) thì báo riêng. Đã thử 2 trang Kirin-DimSum vẽ ra JPEG: Gemini đọc 33 món, bằng đúng lúc đọc từ PDF.
+
 - Nút **Gemini đọc tên món + viết menu** gửi **một lượt mỗi trang PDF**: ảnh trang (cạnh dài ≤1600px) có vẽ khung đỏ
   đánh số các ảnh đã cắt, theo thứ tự đọc (trên → dưới, trái → phải). Gemini trả tên món cho từng khung số và toàn bộ
   mục/món/giá của trang; tên chỉ ghi đè khi Gemini trả tên không rỗng (khung trang trí giữ tên cũ), JSON menu được

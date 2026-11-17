@@ -399,17 +399,18 @@
 <section data-tab="menu" hidden>
 <div class="panel" id="mdrop">
   <h2 class="ttl">Tách ảnh món từ menu PDF</h2>
-  <p class="lead">Chọn một hay nhiều file, hoặc dán link PDF menu: trang tự cắt ảnh từng món, điền tên món, rồi tải về hay tạo link.</p>
+  <p class="lead">Chọn một hay nhiều file, hoặc dán link PDF menu: trang tự cắt ảnh từng món, điền tên món, rồi tải về hay tạo link.
+    Ảnh chụp menu (chọn được nhiều ảnh, gộp thành một menu) thì để Gemini / Claude đọc món và giá.</p>
   <div class="bar">
-    <button id="mpick" class="pri">Chọn file PDF…</button>
-    <input type="file" id="mf" accept="application/pdf" multiple hidden>
+    <button id="mpick" class="pri">Chọn PDF / ảnh menu…</button>
+    <input type="file" id="mf" accept="application/pdf,image/*" multiple hidden>
     <button id="mall" hidden></button>
     <button id="mup" hidden></button>
     <button id="msel" hidden></button>
     <button id="mdrop0" hidden>Bỏ chọn ảnh chưa có tên</button>
     <button id="mai" hidden title="Copy câu lệnh làm nét, dán vào Gemini hoặc ChatGPT kèm các ảnh ghi “mờ” (Claude không xuất được ảnh)"></button>
     <button id="mjson" hidden></button>
-    <button id="mgem" hidden title="Gửi từng trang PDF cho Gemini: điền tên món dưới ảnh và viết lại JSON menu"></button>
+    <button id="mgem" hidden title="Gửi từng trang PDF / ảnh menu cho Gemini: điền tên món dưới ảnh và viết lại JSON menu"></button>
   </div>
   <form class="row" id="murlf">
     <input type="text" id="murl" inputmode="url" spellcheck="false" placeholder="…hoặc dán link PDF (https://…/menu.pdf)" aria-label="Link file PDF">
@@ -1299,17 +1300,26 @@ function menuCard(blob,pn,sec,name,w,h){
 let mrun=0, mpdf='menu', mjs=null, mmulti=false;   // mrun: chọn file mới giữa chừng thì lượt cũ tự dừng; mpdf: tên zip/JSON
 let mdocs=[];   // PDF đang mở (pdf.js), giữ lại để nút Gemini vẽ lại từng trang
 // Nhận một hay nhiều PDF: đọc lần lượt, ảnh mọi file nối vào cùng một lưới; file lỗi thì báo rồi đọc tiếp file sau.
+// Ảnh chụp menu bọc thành "tài liệu" có đúng mấy hàm pdf.js mà nút Gemini dùng (numPages, getPage, getViewport, render).
+// Giữ File, mỗi lần vẽ mới giải mã: 10 ảnh 12MP giữ sẵn bitmap tốn ~500MB.
+const MIMG=/\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i, misImg=f=>/^image\//.test(f.type) || MIMG.test(f.name||'');
+const imgDoc=pages=>({numPages:pages.length, destroy(){}, getPage:async pn=>{ const p=pages[pn-1]; return {
+  getViewport:({scale=1})=>({width:p.w*scale, height:p.h*scale}),
+  render:({canvasContext:g,viewport:v})=>({promise:createImageBitmap(p.f).then(b=>{ g.drawImage(b,0,0,v.width,v.height); b.close(); })}) }; }});
 async function menuPdf(files){
   files=[].concat(files).filter(Boolean);
-  if(!files.length) return;
+  // nhiều ảnh chọn cùng lúc = một menu nhiều trang, xếp theo tên file (ảnh chụp liên tiếp có số tăng dần)
+  const imgs=files.filter(misImg).sort((a,b)=>(a.name||'').localeCompare(b.name||'',undefined,{numeric:true}));
+  files=files.filter(f=>!misImg(f));
+  if(!files.length && !imgs.length) return;
   const run=++mrun; mgrid.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
   mgrid.replaceChildren(); mempty.hidden=true; mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=mai.hidden=mgem.hidden=true; mjs=null;
   mdocs.forEach(d=>d.doc.destroy()); mdocs=[];
-  const pslug=f=>slug((f.name||'').replace(/\.pdf$/i,''))||'menu';
-  mmulti=files.length>1; mpdf=mmulti ? 'menu_'+files.length+'-pdf' : pslug(files[0]);
+  const pslug=f=>slug((f.name||'').replace(/\.pdf$/i,'').replace(MIMG,''))||'menu';
+  mmulti=files.length+(imgs.length ? 1 : 0)>1; mpdf=mmulti ? 'menu_'+(files.length+imgs.length)+'-file' : files.length ? pslug(files[0]) : imgs.length>1 ? 'menu-anh' : pslug(imgs[0]);
   let named=0, items=0; const bad=[];
   let pdfjs;
-  try{
+  if(files.length) try{
     mhint.textContent='Đang nạp bộ đọc PDF…';
     pdfjs=await import(PDFJS+'pdf.min.mjs');
     pdfjs.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.mjs';
@@ -1356,10 +1366,20 @@ async function menuPdf(files){
       }
     }catch(e){ if(run!==mrun) return; bad.push(file.name+' ('+e.message+')'); }
   }
+  const pbad=bad.length, pages=[];
+  for(const f of imgs){
+    try{ const b=await createImageBitmap(f); pages.push({f,w:b.width,h:b.height}); b.close(); }
+    catch(e){ bad.push(f.name+' (trình duyệt không đọc được ảnh này)'); }
+  }
+  if(run!==mrun) return;
+  if(pages.length) mdocs.push({doc:imgDoc(pages), name:imgs.length>1 ? 'Menu ảnh' : imgs[0].name.replace(MIMG,''), slug:'anh', tx:[]});
   const n=mgrid.children.length;
-  mhint.textContent = n ? n+' ảnh'+(mmulti?' từ '+(files.length-bad.length)+' file':'')+', '+named+' ảnh tự nhận được tên món. Rà lại tên trước khi tải; ảnh ghép, ảnh trang trí thì bỏ tích.'
-    : bad.length===files.length ? '' : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
+  mhint.textContent = n ? n+' ảnh'+(mmulti?' từ '+(files.length-pbad)+' file':'')+', '+named+' ảnh tự nhận được tên món. Rà lại tên trước khi tải; ảnh ghép, ảnh trang trí thì bỏ tích.'
+    : pbad===files.length ? '' : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
   if(items) mhint.textContent+=' JSON menu: '+items+' món có giá, '+mjs.menus.reduce((k,m)=>k+m.content.sections.length,0)+' mục.';
+  if(pages.length) mhint.textContent+=(mhint.textContent ? ' ' : '')+pages.length+' ảnh chụp menu: '+(gkeys().length
+    ? 'bấm nút đọc tên món + viết menu để Gemini / Claude đọc món và giá.'
+    : 'ảnh chụp không tự đọc được, mở mục Gemini / Claude bên dưới, dán key rồi bấm nút đọc menu.');
   if(bad.length) mhint.textContent+=' Không đọc được: '+bad.join('; ')+'.';
   mcount(); mdrop0.hidden=n===named; maiCount(); mgemShow();
 }
@@ -1411,7 +1431,7 @@ mf.onchange=()=>{ menuPdf([...mf.files]); mf.value=''; };
 mdrop.addEventListener('dragover',e=>{ e.preventDefault(); mdrop.classList.add('drag'); });
 mdrop.addEventListener('dragleave',e=>{ if(!mdrop.contains(e.relatedTarget)) mdrop.classList.remove('drag'); });
 mdrop.addEventListener('drop',e=>{ e.preventDefault(); mdrop.classList.remove('drag');
-  menuPdf([...e.dataTransfer.files].filter(f=>/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name))); });
+  menuPdf([...e.dataTransfer.files].filter(f=>/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name)||misImg(f))); });
 mjson.onclick=()=>saveBlob(new Blob([JSON.stringify(mjs,null,2)],{type:'application/json'}),mpdf+'_menu.json');
 mgrid.addEventListener('change',e=>{ if(e.target.className==='mck') mcount(); });
 msel.onclick=()=>{ const on=mpicked().length!==mgrid.children.length;
