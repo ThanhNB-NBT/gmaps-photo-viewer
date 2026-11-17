@@ -265,6 +265,9 @@
   #gemk:not(:focus){-webkit-text-security:disc}   /* key hiện chữ chỉ lúc đang sửa */
   #gemu{margin-top:8px;font-variant-numeric:tabular-nums;line-height:1.6}
   #udrop.drag{outline:2px dashed var(--water)}
+  #uhd{margin-top:22px}
+  #uhd summary{cursor:pointer;width:fit-content;color:var(--mut);font-weight:600}
+  #uhclr{margin-left:8px;padding:5px 11px;font-size:13px}
   .ucp{flex:1;min-width:0;padding:9px 12px;border:0;background:transparent;color:var(--water);text-align:left;
     font:600 12.5px var(--ui);cursor:copy;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ucp:not(:disabled):hover{background:var(--wash)}
@@ -483,6 +486,12 @@
   </details>
 </div>
 <ul class="grid sm" id="ulist"></ul>
+<details id="uhd" hidden>
+  <summary id="uhs"></summary>
+  <p class="hint">Chỉ lưu trong trình duyệt này, không gửi đi đâu; ảnh quá 7 ngày tự biến mất khỏi danh sách.
+    <button id="uhclr" type="button">Xoá lịch sử</button></p>
+  <ul class="grid sm" id="uhl"></ul>
+</details>
 </section>
 
 <section data-tab="guide" class="guide" hidden>
@@ -620,7 +629,8 @@
       <li>Tra địa chỉ gửi toạ độ tới gis.vn.</li>
       <li>Tải video gửi đường link tới tikwm.com (TikTok) hoặc máy chủ chuyển tiếp của trang; không nơi nào lưu lại.</li>
       <li>Ảnh menu chỉ lên máy chủ của trang khi bạn bấm Tạo link, và tự xoá sau 7 ngày.</li>
-      <li>Trình duyệt chỉ nhớ ba thứ: chế độ sáng/tối, token gis.vn và khoá máy chủ ảnh (nếu bạn nhập).</li>
+      <li>Trình duyệt chỉ nhớ: chế độ sáng/tối, token gis.vn, khoá máy chủ ảnh và khoá AI đọc menu (nếu bạn nhập),
+        cùng danh sách link ảnh đã up (tự bỏ sau 7 ngày, xoá được bằng nút Xoá lịch sử).</li>
     </ul>
   </div>
   <div>
@@ -1857,23 +1867,40 @@ async function toJpeg(f){
 }
 const kb=n=>n<1048576 ? Math.round(n/1024)+' KB' : (n/1048576).toFixed(1)+' MB';
 function ucount(){ const n=[...ulist.children].filter(l=>l.link).length; ucopy.hidden=!n; ucopy.textContent='Copy tất cả link ('+n+')'; }
+// Một ô ảnh gọn như tab xem ảnh: bấm ảnh mở bản đã tải, nút dưới ảnh copy link (khoá tới khi có link).
+function utile(list,name,src,n){
+  const li=document.createElement('li'); li.className='card ut'; li.title=name;
+  const a=document.createElement('a'); a.className='box'; a.target='_blank'; a.rel='noopener noreferrer';
+  const img=new Image(); img.alt=name; img.loading='lazy'; img.src=a.href=src;
+  const no=document.createElement('div'); no.className='no'; no.textContent=n;
+  const st=document.createElement('div'); st.className='st dim';
+  a.append(img,st,no);
+  const foot=document.createElement('div'); foot.className='foot';
+  const cb=document.createElement('button'); cb.className='ucp'; cb.type='button'; cb.disabled=true; cb.textContent='Đang chờ…';
+  cb.onclick=()=>copy(li.link).then(ok=>{ cb.textContent=ok?'Đã copy':'Copy không được'; setTimeout(()=>cb.textContent='Copy link',900); });
+  foot.append(cb); li.append(a,foot); list.append(li);
+  return {li,a,img,st,cb};
+}
+function udone({li,a,st,cb},e,note=''){
+  li.link=a.href=e.url; li.classList.add('done'); cb.disabled=false; cb.textContent='Copy link'; st.textContent=e.meta||'';
+  li.title=[e.name, e.url, note+'hết hạn '+new Date(e.expires*1000).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'})].join('\n');
+}
+// Lịch sử up nằm trong trình duyệt này (không có tài khoản): mở lại trang vẫn thấy các link còn hạn, mới nhất trước.
+// shortcut: chỉ thấy trên đúng máy + trình duyệt đã up; muốn xem trên máy khác thì cần mã ID lưu phía máy chủ.
+const UHK='gpv-uphist', uhd=document.getElementById('uhd'), uhl=document.getElementById('uhl');
+const uhget=()=>{ try{ return (JSON.parse(localStorage.getItem(UHK))||[]).filter(e=>e.expires>Date.now()/1000); }catch(e){ return []; } };
+const uhsave=h=>{ try{ localStorage.setItem(UHK,JSON.stringify(h.slice(0,500))); }catch(e){} };
+(()=>{ const h=uhget(); uhsave(h); uhd.hidden=!h.length;
+  document.getElementById('uhs').textContent='Ảnh đã up trên trình duyệt này, còn hạn ('+h.length+')';
+  h.forEach((e,i)=>udone(utile(uhl,e.name,e.url,h.length-i),e)); })();
+document.getElementById('uhclr').onclick=()=>{ try{ localStorage.removeItem(UHK); }catch(e){} uhl.replaceChildren(); uhd.hidden=true; };
 let uq=Promise.resolve();   // tải lần lượt từng ảnh: mạng nhà upload chậm, dồn cùng lúc thì ảnh nào cũng dễ quá 60 giây
 function uadd(files){
   files=[...files].filter(f=>f.type.startsWith('image/'));
   if(!files.length){ uhint.textContent='Không thấy ảnh nào trong số file vừa đưa vào.'; return; }
   if(!ukey.value.trim()){ ukeyd.open=true; ukey.focus(); uhint.textContent='Dán khoá máy chủ ảnh vào ô bên dưới rồi đưa ảnh vào lại.'; return; }
   for(const f of files){
-    // Ô gọn như tab xem ảnh: bấm ảnh mở bản đã tải, nút dưới ảnh copy link.
-    const li=document.createElement('li'); li.className='card ut'; li.title=f.name;
-    const a=document.createElement('a'); a.className='box'; a.target='_blank'; a.rel='noopener noreferrer';
-    const img=new Image(); img.alt=f.name; img.src=a.href=URL.createObjectURL(f);
-    const no=document.createElement('div'); no.className='no'; no.textContent=ulist.children.length+1;
-    const st=document.createElement('div'); st.className='st dim';
-    a.append(img,st,no);
-    const foot=document.createElement('div'); foot.className='foot';
-    const cb=document.createElement('button'); cb.className='ucp'; cb.type='button'; cb.disabled=true; cb.textContent='Đang chờ…';
-    cb.onclick=()=>copy(li.link).then(ok=>{ cb.textContent=ok?'Đã copy':'Copy không được'; setTimeout(()=>cb.textContent='Copy link',900); });
-    foot.append(cb); li.append(a,foot); ulist.append(li);
+    const {li,a,img,st,cb}=utile(ulist,f.name,URL.createObjectURL(f),ulist.children.length+1);
     uq=uq.then(async()=>{
       cb.textContent='Đang tải lên…';
       try{
@@ -1883,10 +1910,9 @@ function uadd(files){
         if(r.status===403){ ukeyd.open=true; throw new Error('sai khoá'); }
         if(!r.ok) throw new Error(await r.text()||'HTTP '+r.status);
         const j=await r.json();
-        li.link=a.href=j.url; li.classList.add('done'); cb.disabled=false; cb.textContent='Copy link';
-        st.textContent=[img.naturalWidth ? img.naturalWidth+'×'+img.naturalHeight : '', kb(b.size)].filter(Boolean).join(' · ');
-        li.title=[f.name, j.url, (b===f?'':'đã đổi sang JPEG · ')+'hết hạn '
-          +new Date(j.expires*1000).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'})].join('\n');
+        const e={url:j.url, expires:j.expires, name:f.name, meta:[img.naturalWidth ? img.naturalWidth+'×'+img.naturalHeight : '', kb(b.size)].filter(Boolean).join(' · ')};
+        udone({li,a,st,cb},e,b===f?'':'đã đổi sang JPEG · ');
+        uhsave([e,...uhget()]);
         ucount();
       }catch(e){ cb.textContent='Lỗi: '+e.message; cb.classList.add('bad'); li.title=f.name+'\nLỗi: '+e.message; }
     });

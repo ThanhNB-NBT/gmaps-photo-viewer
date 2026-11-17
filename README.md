@@ -191,7 +191,10 @@ Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một ho�
 Tab **Up ảnh**: kéo thả, dán (Ctrl+V) hoặc chọn nhiều ảnh, mỗi ảnh tự tải lên cùng máy chủ ảnh tạm với Menu PDF
 (`POST /up`, cần khoá) và ra một link công khai sống 7 ngày. Ảnh xếp lưới ô nhỏ (điện thoại 2 cột), nút **Copy link** ngay dưới mỗi ảnh. Máy chủ chỉ nhận JPEG ≤10 MB
 nên ảnh khác (PNG, WebP…) được vẽ lại ra JPEG trong trình duyệt (chỗ trong suốt thành nền trắng, GIF mất chuyển động),
-ảnh quá 10 MB thu nhỏ dần cho vừa. Danh sách chỉ sống trong tab, tải lại trang là mất (link vẫn còn hạn).
+ảnh quá 10 MB thu nhỏ dần cho vừa. Mỗi ảnh up xong được ghi vào lịch sử trong `localStorage` (`gpv-uphist`: link,
+hạn, tên, cỡ), nên mở lại trang vẫn thấy mục **Ảnh đã up trên trình duyệt này** với các link còn hạn; mục quá hạn tự
+bị bỏ lúc mở trang. Lịch sử chỉ có trên đúng máy + trình duyệt đã up (không có tài khoản); nút **Xoá lịch sử** chỉ xoá
+danh sách, ảnh trên máy chủ vẫn tự hết hạn sau 7 ngày.
 
 ## Tải video TikTok / Facebook / YouTube / Instagram / Google Maps
 
