@@ -34,7 +34,7 @@ Dán xong là tự chuẩn hoá và hiển thị ngay (hoặc nhấn **Enter** s
   kiểu ảnh máy chủ trả về. Ảnh nào máy chủ không cho trang đọc thì báo "không tải được", mở ảnh rồi lưu tay.
 - Link được đánh số, số nằm **ngoài** ô nhập nên bôi đen chép link không dính số vào.
   Rê chuột lên một dòng link thì số đó và ô ảnh tương ứng cùng sáng lên, và ngược lại.
-- **Copy tất cả** chép toàn bộ ô nhập. Copy một link: nút copy ở cột bên phải ô nhập, ngay hàng số thứ tự
+- **Copy tất cả** chép toàn bộ ô nhập. Copy một link: bấm số dòng (số tạm thành ✓), hoặc nút copy ở cột bên phải ô nhập, ngay hàng số thứ tự
   (khỏi kéo xuống tìm ô ảnh), hoặc bấm dòng link dưới ảnh. Ô ảnh xếp lưới nhỏ (từ 150px, điện thoại 2 cột). Nút `×` xoá từng link — một cột bên phải ô nhập
   (cũng nằm ngoài textarea như số thứ tự), và một nút nữa dưới mỗi ô ảnh; xoá xong
   số tự đánh lại từ 1.
