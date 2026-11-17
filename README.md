@@ -130,9 +130,9 @@ tên rồi bỏ qua, các file khác vẫn đọc tiếp.
   duy nhất của trang).
 - Tự kiểm phần lõi: `node check-menu.mjs`.
 
-### Gemini đọc tên món + viết menu (tuỳ chọn)
+### Gemini / Claude đọc tên món + viết menu (tuỳ chọn)
 
-Mở mục **Gemini (tuỳ chọn)** dưới thanh nút, dán một hoặc nhiều API key (mỗi dòng một key, lấy ở
+Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một hoặc nhiều API key (mỗi dòng một key, lấy ở
 [AI Studio](https://aistudio.google.com/apikey)), chọn model. Không điền key thì mọi thứ chạy như cũ.
 
 - Nút **Gemini đọc tên món + viết menu** gửi **một lượt mỗi trang PDF**: ảnh trang (cạnh dài ≤1600px) có vẽ khung đỏ
@@ -162,7 +162,14 @@ Mở mục **Gemini (tuỳ chọn)** dưới thanh nút, dán một hoặc nhi�
 - Giới hạn hiển thị là **ước tính** của free tier (flash-lite 500 lượt/ngày, flash 20, gemma 14400) đếm trong máy;
   Google không trả số lượt còn lại qua API. Ngày tính theo giờ Los Angeles (lúc Google đặt lại hạn mức).
 - Model sinh ảnh và 3.1-pro không có hạn mức free nên bị lọc khỏi danh sách.
-- Key lưu trong `localStorage` (`gpv-gemini`) của trình duyệt, chỉ gửi thẳng tới `generativelanguage.googleapis.com`.
+- **Claude** dùng chung ô key: dán key `sk-ant-…` (lấy ở [console.anthropic.com](https://console.anthropic.com/settings/keys))
+  là danh sách model có thêm `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` kèm giá $/1M token; model đang chọn
+  quyết định dùng key hãng nào. Trang gọi thẳng `api.anthropic.com/v1/messages` (header
+  `anthropic-dangerous-direct-browser-access`), cùng prompt và cùng schema (đổi sang JSON Schema qua `output_config.format`,
+  nên JSON luôn đúng khuôn). Opus/Sonnet bật `fallbacks: "default"`: bộ lọc an toàn từ chối nhầm thì Anthropic tự chạy lại
+  bằng model dự phòng. Claude không có free tier: thay cho lượt, trang hiện **số tiền ước tính** từ `usage` trả về.
+  Lỗi: 529/5xx → lùi dần như Gemini; 429 → chờ theo `retry-after`; 401/403 → bỏ key; 400 "credit balance" → key hết tiền.
+- Key lưu trong `localStorage` (`gpv-gemini`) của trình duyệt, chỉ gửi thẳng tới `generativelanguage.googleapis.com` / `api.anthropic.com`.
   Mọi trang trên `thanhnb-nbt.github.io` dùng chung origin này — đừng dùng máy chung.
 
 ## Up ảnh lấy link

@@ -74,7 +74,11 @@ assert.deepStrictEqual(J,{schema_version:1,menus:[{name:'Thử',type:'a_la_carte
   {name:'Steamed rice. Cơm trắng.',price:150000,price_text:'150.000++'}]}],price_note:'GIÁ CHƯA GỒM 8% VAT'}}]});
 // Gemini: gom mục theo kind thành a_la_carte / set_menu / beverage, giá theo nghìn đồng được nhân đồng loạt
 { const g=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8').split('/*gem-core*/')[1].split('/*/gem-core*/')[0];
-  const {gemMenus,gtext,gprices,gmiss}=new Function(g+';return {gemMenus,gtext,gprices,gmiss}')();
+  const {gemMenus,gtext,gprices,gmiss,jsch}=new Function(g+';return {gemMenus,gtext,gprices,gmiss,jsch}')();
+  // schema Gemini -> JSON Schema của Claude: nullable thành anyOf null, object nào cũng additionalProperties:false
+  assert.deepEqual(jsch({type:'OBJECT',required:['a'],properties:{a:{type:'ARRAY',items:{type:'OBJECT',properties:{p:{type:'NUMBER',nullable:true},k:{type:'STRING',enum:['x']}}}}}}),
+    {type:'object',required:['a'],additionalProperties:false,properties:{a:{type:'array',items:{type:'object',additionalProperties:false,
+      properties:{p:{anyOf:[{type:'number'},{type:'null'}]},k:{type:'string',enum:['x']}}}}}});
   // chữ trang: gom theo dòng, mảnh chữ Việt sát nhau nối liền; giá đứng riêng, bỏ số trang/số miếng
   const T=[{s:'VEGGIE SIDES',x:40,y:100,h:20,w:150},{s:'110',x:400,y:102,h:12,w:20},{s:'B',x:40,y:130,h:12,w:7},{s:'ò',x:47,y:130,h:12,w:7},
     {s:'Riviera Terre',x:40,y:160,h:12,w:80},{s:'1.050',x:400,y:160,h:12,w:30},{s:'— 280',x:400,y:180,h:12,w:30},{s:'14',x:300,y:800,h:9,w:10},
