@@ -1571,8 +1571,9 @@ const GEM_SCHEMA={type:'OBJECT',required:['sections','images'],properties:{
 // Gemma không có chế độ JSON qua API: chỉ dựa vào prompt rồi bóc ```json``` khi parse.
 const gcfg=m=>/^gemini/.test(m) ? {responseMimeType:'application/json',responseSchema:GEM_SCHEMA} : {};
 // Cùng khuôn với menuJson: {name, note?, price?, price_text?}
-const gitem=x=>{ const it={name:String(x.name).trim()}; if(x.note&&x.note.trim()) it.note=x.note.trim();
-  if(typeof x.price==='number') it.price=x.price; if(x.price_text&&x.price_text.trim()!==String(x.price)) it.price_text=x.price_text.trim(); return it; };
+const gsp=s=>String(s||'').replace(/\s+/g,' ').trim();   // Gemini giữ cả xuống dòng trong tên song ngữ
+const gitem=x=>{ const it={name:gsp(x.name)}; if(gsp(x.note)) it.note=gsp(x.note);
+  if(typeof x.price==='number') it.price=x.price; if(gsp(x.price_text) && gsp(x.price_text)!==String(x.price)) it.price_text=gsp(x.price_text); return it; };
 mgem.onclick=async()=>{
   const run=mrun, m=gemm.value, total=mdocs.reduce((n,d)=>n+d.doc.numPages,0), menus=[];
   let done=0, named=0, err='';
@@ -1593,13 +1594,16 @@ mgem.onclick=async()=>{
         const j=JSON.parse(t.replace(/^\s*```(?:json)?|```\s*$/g,''));
         for(const s of j.sections||[]){
           const items=(s.items||[]).filter(x=>x&&x.name&&String(x.name).trim()).map(gitem); if(!items.length) continue;
-          const name=String(s.name||'').trim()||(secs.length ? secs[secs.length-1].name : '');
+          const name=gsp(s.name)||(secs.length ? secs[secs.length-1].name : '');
           if(secs.length && secs[secs.length-1].name===name) secs[secs.length-1].items.push(...items); else secs.push({name,items});
         }
         if(!note && j.price_note) note=j.price_note.trim();
         for(const x of j.images||[]){ const c=cs[x.i-1]; if(c && x.name && x.name.trim()){ c.querySelector('input[type=text]').value=x.name.trim(); named++; } }
       }catch(e){ err='trang '+pn+' của '+d.name+': '+e.message; if(e.fatal) break outer; }
     }
+    // menu ghi giá theo nghìn đồng ("290" = 290.000): flash-lite lúc nhân lúc không, nên menu đã có giá ≥ 10.000 thì nhân nốt
+    const I=secs.flatMap(s=>s.items);
+    if(I.some(i=>i.price>=10000)) for(const i of I) if(i.price>0 && i.price<10000){ i.price_text??=String(i.price); i.price*=1000; }
     if(secs.length) menus.push({name:d.name.replace(/\.pdf$/i,''), type:'a_la_carte', source_url:null,
       content:Object.assign({sections:secs}, note ? {price_note:note} : {})});
   }
