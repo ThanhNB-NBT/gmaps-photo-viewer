@@ -284,6 +284,8 @@
   .ut .x.cp{position:absolute;top:8px;right:8px;z-index:1;width:28px;height:28px;background:rgba(0,0,0,.62);color:#fff}
   .ut .x.cp.ok{background:var(--water);color:var(--water-fg)}
   .ut:not(.done) .x.cp{display:none}
+  .ut.cpd .ucp::before{content:'✓ ';color:var(--water)}
+  .ut.cpl{border-color:var(--water);box-shadow:0 0 0 3px var(--water)}
   /* Trỏ chuột: tên đầy đủ (xuống dòng được) + cỡ ảnh, phủ dải dưới ảnh. */
   .ut .st.dim{inset:auto 0 0 0;display:block;border-radius:0;padding:6px 10px;white-space:pre-line;
     overflow-wrap:anywhere;line-height:1.35;text-align:left;background:rgba(0,0,0,.72)}
@@ -1903,6 +1905,8 @@ function utile(list,name,src,n){
   const ci=document.createElement('button'); ci.className='x cp'; ci.type='button'; ci.disabled=true; ci.innerHTML=CPI;
   ci.title='Copy link'; ci.setAttribute('aria-label','Copy link '+name);
   cb.onclick=ci.onclick=()=>copy(li.link).then(ok=>{ cb.textContent=ok?'Đã copy link':'Copy không được'; ci.textContent=ok?'✓':'!';
+    // Ảnh nào đã copy giữ dấu ✓ trước tên; ảnh vừa copy gần nhất có viền sáng (chỉ một ảnh).
+    if(ok){ document.querySelector('.ut.cpl')?.classList.remove('cpl'); li.classList.add('cpd','cpl'); }
     ci.classList.toggle('ok',ok); setTimeout(()=>{ cb.textContent=name; ci.innerHTML=CPI; ci.classList.remove('ok'); },900); });
   // Icon nằm trên li, không trong thẻ a: bấm copy mà không mở ảnh (nút trong <a> cũng là HTML sai).
   foot.append(cb); li.append(a,foot,ci); list.append(li);
