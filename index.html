@@ -1317,10 +1317,11 @@ async function menuPdf(files){
     try{
       const doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
       if(run!==mrun){ doc.destroy(); return; }
-      mdocs.push({doc, name:file.name||'menu.pdf', slug:pslug(file)});
+      const TX=[];   // chữ từng trang, nút Gemini gửi kèm ảnh
+      mdocs.push({doc, name:file.name||'menu.pdf', slug:pslug(file), tx:TX});
       // Lượt 1: đọc chữ mọi trang để nhận ra chân trang (hotline, website…) = dòng lặp lại trên quá nửa số trang;
       // không bỏ thì ảnh nằm sát đáy trang bị gán tên là dòng đó.
-      const TX=[], seen=new Map();
+      const seen=new Map();
       for(let pn=1; pn<=doc.numPages; pn++){
         const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
         TX[pn]=(await page.getTextContent()).items.filter(t=>t.str.trim()).map(t=>{
@@ -1510,8 +1511,9 @@ gemm.onchange=()=>{ gst.model=gemm.value; gsave(); gdraw(); };
 // Gọi một lượt: chọn key còn lượt, ít dùng nhất; 429 theo phút / 5xx thì cho key nghỉ rồi xoay sang key khác,
 // 429 theo ngày thì gạch key đó tới hết ngày. Lỗi có .fatal = không key nào dùng được nữa, dừng hẳn.
 async function gemCall(body, onWait){
-  const m=gemm.value, fatal=msg=>Object.assign(new Error(msg),{fatal:true});
-  for(let tries=0; tries<15; tries++){
+  const m=gemm.value, fatal=msg=>Object.assign(new Error(msg),{fatal:true}), t0=Date.now();
+  // Một key free tier hết lượt/phút sau ~15 trang: đợi theo retryDelay thay vì đếm lần thử, chỉ bỏ cuộc sau 6 phút
+  for(let n5=0; Date.now()-t0<360000;){
     const ks=gkeys().filter(k=>{ const u=guse(k,m); return !u.out && !u.bad; });
     if(!ks.length) throw fatal(gkeys().length ? 'mọi key đã hết lượt hôm nay với '+m+' (đổi model khác hoặc thêm key)' : 'chưa có key Gemini');
     const free=k=>Math.max(gcool[k]||0,Date.now());
@@ -1528,6 +1530,7 @@ async function gemCall(body, onWait){
       const j=await r.json(), c=j.candidates&&j.candidates[0];
       const t=c&&c.content&&(c.content.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join('');
       if(!t) throw new Error('Gemini không trả nội dung ('+((c&&c.finishReason)||(j.promptFeedback&&j.promptFeedback.blockReason)||'?')+')');
+      if(c.finishReason==='MAX_TOKENS') throw new Error('Gemini trả thiếu (bị cắt vì quá dài)');
       return t;
     }
     const e=(await r.json().catch(()=>({}))).error||{}, det=e.details||[];
@@ -1535,11 +1538,11 @@ async function gemCall(body, onWait){
       if(/PerDay/.test(det.flatMap(d=>d.violations||[]).map(v=>v.quotaId).join(' '))) u.out=true;
       else gcool[k]=Date.now()+(parseFloat((det.find(d=>d.retryDelay)||{}).retryDelay)||30)*1000;
     }else if(r.status===403 || (r.status===400 && /API.?key/i.test(e.message||''))) u.bad=true;
-    else if(r.status>=500) gcool[k]=Date.now()+4000;   // 503 "high demand" hay gặp ở flash
+    else if(r.status>=500) gcool[k]=Date.now()+Math.min(60000,4000*2**n5++);   // 503 "high demand": lùi 4s, 8s, 16s… tối đa 1 phút
     else throw new Error(e.message||'HTTP '+r.status);
     gsave(); gdraw();
   }
-  throw new Error('Gemini quá tải, thử lại sau ít phút');
+  throw new Error('Gemini quá tải hơn 6 phút');
 }
 // Vẽ trang (cạnh dài ≤1600px) kèm khung đỏ đánh số quanh từng ảnh đã cắt, để Gemini nói ảnh #i là món nào.
 async function gemPage(page,cs){
@@ -1552,17 +1555,26 @@ async function gemPage(page,cs){
     g.fillStyle='#e00'; g.fillRect(x,y,g.measureText(t).width+12,32); g.fillStyle='#fff'; g.fillText(t,x+6,y+3); });
   return c.toDataURL('image/jpeg',.85).split(',')[1];
 }
-const GEM_PROMPT=n=>`Ảnh là một trang menu nhà hàng.${n ? ` Các khung đỏ đánh số #1 đến #${n} là ảnh món đã được cắt ra.` : ''}
-Trả về JSON:
-- sections: các mục món trên trang theo thứ tự đọc, mỗi mục {name, kind, set, set_price, set_terms, choose, items}.
+const GEM_PROMPT=(n,text)=>`Ảnh là một trang menu nhà hàng.${n ? ` Các khung đỏ đánh số #1 đến #${n} là ảnh món đã được cắt ra.` : ''}
+${text ? `Chữ trích từ lớp text của PDF (đúng chính tả: chép tên và giá từ đây; thứ tự có thể lệch, bố cục thì xem ảnh):
+"""
+${text}
+"""
+` : ''}Đọc HẾT mọi món trên trang (mọi cột, chữ nhỏ, món không có ảnh), không bỏ món nào. Trả về JSON:
+- sections: các mục món trên trang theo thứ tự đọc, mỗi mục {name, kind, price, set, set_price, set_terms, choose, items}.
   kind: "food" (món gọi lẻ, mỗi món một giá), "drink" (đồ uống: bia, rượu, vang, cocktail, nước, trà, cà phê),
   "set" (thuộc một set menu / combo / buffet / tasting menu bán theo MỘT giá chung cho cả set hoặc mỗi người).
   Với kind "set": set là tên set (mọi mục của cùng một set ghi cùng tên set, kể cả ở trang khác), set_price là giá
   của set thành số (không thấy giá trên trang thì null), set_terms là các điều kiện in kèm set (giờ áp dụng, tối thiểu
   mấy người, giá mỗi người, đồ uống kèm...), không có thì []. Kind khác thì set "", set_price null, set_terms [].
   choose: mục ghi "chọn 1", "choice of", "lựa chọn 2 món" thì là số món được chọn, không thì 0.
+  price của mục: mục in MỘT giá chung cho mọi món trong mục (vd tiêu đề "VEGGIE SIDES" kèm một giá 110) thì là giá đó
+  thành số đầy đủ, món trong mục để price null; không thì null.
   Mỗi món {name, note, price, price_text, glass, bottle}:
-  name giữ đúng chữ in trên menu (không dịch, không sửa); note là mô tả hay ghi chú in kèm món, không có thì "";
+  name giữ đúng chữ in trên menu (không dịch, không sửa); tên in hai thứ tiếng thì ghép "tên thứ nhất | tên thứ hai"
+  theo thứ tự in; note là mô tả hay ghi chú in kèm món, không có thì "";
+  Món bán nhiều cỡ / khẩu phần, mỗi cỡ một giá (Regular/Large, S/M/L, 1/3/5 miếng, 100g/200g): mỗi cỡ là một món riêng,
+  name là "<tên món> - <cỡ>" (vd "Riviera Terre - Large"); KHÔNG bao giờ để name chỉ là tên cỡ.
   price_text là giá đúng như in; price là giá thành số đầy đủ (menu Việt ghi "290" hay "290k" nghĩa là 290000), không có giá thì null.
   Món trong set thường không có giá riêng: price null. Đồ uống có giá ly và giá chai thì glass, bottle là hai giá đó
   (số đầy đủ), price null; không thì glass, bottle null.
@@ -1573,7 +1585,7 @@ Trả về JSON:
 Trang không có món nào (bìa, giới thiệu) thì sections rỗng.`;
 const GEM_SCHEMA={type:'OBJECT',required:['sections','images'],properties:{
   sections:{type:'ARRAY',items:{type:'OBJECT',required:['name','kind','items'],properties:{name:{type:'STRING'},
-    kind:{type:'STRING',enum:['food','drink','set']},set:{type:'STRING'},set_price:{type:'NUMBER',nullable:true},
+    kind:{type:'STRING',enum:['food','drink','set']},price:{type:'NUMBER',nullable:true},set:{type:'STRING'},set_price:{type:'NUMBER',nullable:true},
     set_terms:{type:'ARRAY',items:{type:'STRING'}},choose:{type:'INTEGER'},
     items:{type:'ARRAY',items:{type:'OBJECT',required:['name'],properties:{name:{type:'STRING'},note:{type:'STRING'},
       price:{type:'NUMBER',nullable:true},price_text:{type:'STRING'},
@@ -1585,13 +1597,30 @@ const gcfg=m=>/^gemini/.test(m) ? {responseMimeType:'application/json',responseS
 /*gem-core*/
 const gsp=s=>String(s||'').replace(/\s+/g,' ').trim();   // Gemini giữ cả xuống dòng trong tên song ngữ
 const gnum=v=>typeof v==='number' && v>0 ? v : 0;
-// số trong chuỗi giá: "1,288" / "1.200.000" là phân cách nghìn, "5,50" là phẩy thập phân
-const gnums=t=>(String(t).match(/\d+(?:[.,]\d+)*/g)||[]).map(x=>/^\d{1,3}([.,]\d{3})+$/.test(x) ? +x.replace(/[.,]/g,'') : +x.replace(',','.'));
+// số trong chuỗi giá: "1,288" / "1.200.000" / "1'500" là phân cách nghìn, "5,50" là phẩy thập phân
+const gnums=t=>(String(t).match(/\d+(?:[.,'’]\d+)*/g)||[]).map(x=>/^\d{1,3}([.,'’]\d{3})+$/.test(x) ? +x.replace(/[.,'’]/g,'') : +x.replace(',','.'));
 // Cùng khuôn với menuJson: {name, note?, price?, price_text?}, đồ uống ly/chai thì {glass?, bottle?} thay cho price
 const gitem=x=>{ const it={name:gsp(x.name)}; if(gsp(x.note)) it.note=gsp(x.note);
   if(gnum(x.glass)||gnum(x.bottle)){ if(gnum(x.glass)) it.glass=x.glass; if(gnum(x.bottle)) it.bottle=x.bottle; }
   else if(gnum(x.price)) it.price=x.price;
   if(gsp(x.price_text) && gsp(x.price_text)!==String(x.price)) it.price_text=gsp(x.price_text); return it; };
+// Chữ một trang ({s,x,y,h,w} như menuJson) xếp lại thành dòng, gửi kèm ảnh để Gemini chép tên/giá đúng từng chữ
+function gtext(texts){
+  const L=[];
+  for(const t of [...texts].sort((a,b)=>a.y-b.y || a.x-b.x)){
+    const l=L.find(l=>Math.abs(l.y-t.y)<Math.max(2,t.h*.5)); if(l) l.t.push(t); else L.push({y:t.y,t:[t]}); }
+  return L.map(l=>l.t.sort((a,b)=>a.x-b.x).reduce((s,t,i,a)=>{ const p=a[i-1];
+    return s+(p && !(p.w!=null && t.x-(p.x+p.w)<t.h*.15) ? ' ' : '')+t.s; },'').replace(/\s+/g,' ').trim())
+    .filter(Boolean).join('\n').slice(0,15000);
+}
+// Mảnh chữ đứng riêng trông như giá ("320", "1.050", "— 280", "185.000++", "£9.95"): thước đo xem Gemini có sót món không.
+// Bỏ số nguyên < 10 (số trang, số miếng).
+const GPRICE=/^(?:[$£€₫]|VND|USD)?\s*(?:\d{1,3}(?:[.,'’]\d{3})*(?:[.,]\d{1,2})?|\d{4,7})\s*(?:k|K|đ|₫|VND|VNĐ|\+\+?)?$/;
+const gprices=texts=>texts.map(t=>gsp(t.s).replace(/^[—–\-.…·:\s]+/,'')).filter(s=>GPRICE.test(s))
+  .map(s=>gnums(s)[0]).filter(v=>v>=10 || v%1);
+// Giá có trên trang mà không thấy đâu trong JSON Gemini trả (so cả dạng đã nhân 1000)
+const gmiss=(truth,j)=>{ const s=new Set(); for(const v of gnums(JSON.stringify(j))){ s.add(v); s.add(v/1000); }
+  return [...new Set(truth)].filter(v=>!s.has(v)); };
 // Gom mục mọi trang của một PDF thành các menu: món lẻ → a_la_carte, đồ uống → beverage, mỗi set có giá → một set_menu
 // (set không thấy giá ở trang nào thì trả về a_la_carte). taken: tên menu đã dùng, để tên không trùng giữa các PDF.
 function gemMenus(name, pages, taken=new Set()){
@@ -1603,8 +1632,11 @@ function gemMenus(name, pages, taken=new Set()){
     if(!note && gsp(j.price_note)) note=gsp(j.price_note);
     for(const s of j.sections||[]){
       const items=(s.items||[]).filter(x=>x && gsp(x.name)).map(gitem); if(!items.length) continue;
-      // flash-lite hay bỏ trống ly/chai khi menu in nhiều cỡ ly ("5,50 / 7,25 / 19,95"): số đầu là ly, số cuối là chai
-      if(s.kind==='drink') for(const it of items) if(!it.price && !it.glass && !it.bottle && /\//.test(it.price_text||'')){
+      // mục in một giá chung ("VEGGIE SIDES … 110"): món nào chưa có giá thì nhận giá đó
+      if(s.kind!=='set' && gnum(s.price)) for(const it of items) if(!it.price && !it.glass && !it.bottle) it.price=s.price;
+      // flash-lite hay bỏ trống ly/chai (hoặc chỉ điền ly) khi menu in nhiều cỡ ly ("5,50 / 7,25 / 19,95", "320 / 1'500"):
+      // số đầu là ly, số cuối là chai
+      if(s.kind==='drink') for(const it of items) if(!it.price && !(it.glass && it.bottle) && /\//.test(it.price_text||'')){
         const v=gnums(it.price_text); if(v.length>=2){ it.glass=v[0]; it.bottle=v[v.length-1]; } }
       for(const it of items) for(const k of ['price','glass','bottle']) if(it[k]) nums.push([it,k]);
       if(s.kind!=='set') { add(s.kind==='drink' ? drink : food, s, items); continue; }
@@ -1626,35 +1658,65 @@ function gemMenus(name, pages, taken=new Set()){
   return out;
 }
 /*/gem-core*/
+// đánh số khung theo thứ tự đọc (trên xuống, trái sang): số lộn xộn thì flash-lite hay gán tên nhầm khung
+const gcards=(d,pn)=>[...mgrid.children].filter(c=>c.pdf===d.slug && c.pn===pn)
+  .sort((a,b)=>Math.abs(a.b[1]-b.b[1])<30 ? a.b[0]-b.b[0] : a.b[1]-b.b[1]);
+// Đọc một trang: JSON hỏng / bị cắt thì đọc lại (tối đa 3 lượt); còn giá in trên trang mà JSON không có
+// thì đọc lại MỘT lần kèm danh sách giá bị sót, giữ bản sót ít hơn. Trả {j, miss}.
+async function gemRead(d,pn,cs,m,wait){
+  const img=await gemPage(await d.doc.getPage(pn),cs), tx=d.tx[pn]||[], text=gtext(tx), truth=gprices(tx).filter(v=>v!==pn);
+  let best=null, hint='', err=null;
+  for(let a=0; a<3; a++){
+    try{
+      const t=await gemCall({contents:[{parts:[{inlineData:{mimeType:'image/jpeg',data:img}},{text:GEM_PROMPT(cs.length,text)+hint}]}],
+        generationConfig:gcfg(m)}, wait);
+      const j=JSON.parse(t.replace(/^\s*```(?:json)?|```\s*$/g,'')), miss=gmiss(truth,j);
+      if(!best || miss.length<best.miss.length) best={j,miss};
+      if(!best.miss.length || hint) break;
+      hint=`\nLần đọc trước bỏ sót: các số ${best.miss.join(', ')} in trên trang nhưng không có trong JSON. Đọc lại CẢ trang,`
+        +` thêm đủ các món mang những giá đó (số nào không phải giá món thì thôi).`;
+    }catch(e){ if(e.fatal) throw e; err=e; if(best) break; }
+  }
+  if(!best) throw err;
+  return best;
+}
+const gcache=new Map();   // kết quả từng trang của lượt mở PDF hiện tại: bấm lại nút thì chỉ đọc những trang chưa có
 mgem.onclick=async()=>{
-  const run=mrun, m=gemm.value, total=mdocs.reduce((n,d)=>n+d.doc.numPages,0), menus=[], taken=new Set();
-  let done=0, named=0, err='';
+  const run=mrun, m=gemm.value, total=mdocs.reduce((n,d)=>n+d.doc.numPages,0), menus=[], taken=new Set(), jobs=[];
+  for(const k of gcache.keys()) if(!k.startsWith(run+'|')) gcache.delete(k);
+  const key=(d,pn,cs)=>[run,d.slug,pn,cs.length,m].join('|'), wait=s=>{ mhint.textContent='Mọi key đang nghỉ, đợi '+s+' giây…'; };
+  for(const d of mdocs) for(let pn=1; pn<=d.doc.numPages; pn++) jobs.push([d,pn]);
+  let named=0, err='', fatal=false, fails=[];
   mgem.disabled=true;
-  outer: for(const d of mdocs){
+  // lượt 2 đọc lại các trang lỗi ở lượt 1 (thường là 503/429 dồn dập), lúc đó key đã nghỉ đủ
+  for(let pass=0; pass<2 && !fatal; pass++){
+    const list=pass ? fails : jobs; fails=[];
+    for(const [i,[d,pn]] of list.entries()){
+      if(run!==mrun) return;   // đã mở PDF khác giữa chừng
+      const cs=gcards(d,pn), k=key(d,pn,cs); if(gcache.has(k)) continue;
+      mhint.textContent='Gemini ('+m+') '+(pass ? 'đọc lại trang lỗi '+(i+1)+'/'+list.length : 'đang đọc trang '+(jobs.indexOf(list[i])+1)+'/'+total)+'…';
+      try{ const r=await gemRead(d,pn,cs,m,wait); if(run!==mrun) return; gcache.set(k,r); }
+      catch(e){ err=e.message; fails.push([d,pn]); if(e.fatal){ fatal=true; break; } }
+    }
+  }
+  const left=[], warn=[], where=(d,pn)=>(mdocs.length>1 ? d.name+' ' : '')+'tr.'+pn;
+  for(const d of mdocs){
     const pages=[];
     for(let pn=1; pn<=d.doc.numPages; pn++){
-      if(run!==mrun) return;   // đã mở PDF khác giữa chừng
-      // đánh số khung theo thứ tự đọc (trên xuống, trái sang): số lộn xộn thì flash-lite hay gán tên nhầm khung
-      const cs=[...mgrid.children].filter(c=>c.pdf===d.slug && c.pn===pn)
-        .sort((a,b)=>Math.abs(a.b[1]-b.b[1])<30 ? a.b[0]-b.b[0] : a.b[1]-b.b[1]);
-      mhint.textContent='Gemini ('+m+') đang đọc trang '+(++done)+'/'+total+'…';
-      try{
-        const img=await gemPage(await d.doc.getPage(pn),cs);
-        const t=await gemCall({contents:[{parts:[{inlineData:{mimeType:'image/jpeg',data:img}},{text:GEM_PROMPT(cs.length)}]}],
-          generationConfig:gcfg(m)}, s=>{ mhint.textContent='Mọi key đang nghỉ, đợi '+s+' giây…'; });
-        if(run!==mrun) return;
-        const j=JSON.parse(t.replace(/^\s*```(?:json)?|```\s*$/g,''));
-        pages.push(j);
-        for(const x of j.images||[]){ const c=cs[x.i-1]; if(c && x.name && x.name.trim()){ c.querySelector('input[type=text]').value=x.name.trim(); named++; } }
-      }catch(e){ err='trang '+pn+' của '+d.name+': '+e.message; if(e.fatal) break outer; }
+      const cs=gcards(d,pn), r=gcache.get(key(d,pn,cs));
+      if(!r){ left.push(where(d,pn)); continue; }
+      pages.push(r.j); if(r.miss.length) warn.push(where(d,pn)+' ('+r.miss.join(', ')+')');
+      for(const x of r.j.images||[]){ const c=cs[x.i-1]; if(c && x.name && x.name.trim()){ c.querySelector('input[type=text]').value=x.name.trim(); named++; } }
     }
     menus.push(...gemMenus(d.name.replace(/\.pdf$/i,''), pages, taken));
   }
   mgem.disabled=false;
   const items=menus.reduce((n,x)=>n+x.content.sections.reduce((k,s)=>k+s.items.length,0),0);
   if(items){ mjs={schema_version:1, menus}; mjson.textContent='Tải JSON menu ('+items+' món, Gemini)'; mjson.hidden=false; }
-  mhint.textContent='Gemini xong: '+named+' ảnh có tên món, '+items+' món trong JSON menu. Rà lại trước khi tải.'
-    +(err ? ' Lỗi gần nhất ở '+err+'.' : '');
+  mhint.textContent=(left.length ? '⚠ CHƯA ĐỦ: '+left.length+' trang chưa đọc được ('+left.join(', ')+') vì '+err
+      +'. Bấm lại nút Gemini để đọc tiếp riêng các trang này. ' : 'Gemini xong. ')
+    +named+' ảnh có tên món, '+items+' món trong JSON menu.'
+    +(warn.length ? ' Nên soát: số in trên trang mà JSON không có ở '+warn.join('; ')+'.' : '')+' Rà lại trước khi tải.';
   mdrop0.hidden=[...mgrid.children].every(c=>mname(c));
 };
 

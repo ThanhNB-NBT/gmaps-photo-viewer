@@ -74,7 +74,18 @@ assert.deepStrictEqual(J,{schema_version:1,menus:[{name:'Thử',type:'a_la_carte
   {name:'Steamed rice. Cơm trắng.',price:150000,price_text:'150.000++'}]}],price_note:'GIÁ CHƯA GỒM 8% VAT'}}]});
 // Gemini: gom mục theo kind thành a_la_carte / set_menu / beverage, giá theo nghìn đồng được nhân đồng loạt
 { const g=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8').split('/*gem-core*/')[1].split('/*/gem-core*/')[0];
-  const {gemMenus}=new Function(g+';return {gemMenus}')();
+  const {gemMenus,gtext,gprices,gmiss}=new Function(g+';return {gemMenus,gtext,gprices,gmiss}')();
+  // chữ trang: gom theo dòng, mảnh chữ Việt sát nhau nối liền; giá đứng riêng, bỏ số trang/số miếng
+  const T=[{s:'VEGGIE SIDES',x:40,y:100,h:20,w:150},{s:'110',x:400,y:102,h:12,w:20},{s:'B',x:40,y:130,h:12,w:7},{s:'ò',x:47,y:130,h:12,w:7},
+    {s:'Riviera Terre',x:40,y:160,h:12,w:80},{s:'1.050',x:400,y:160,h:12,w:30},{s:'— 280',x:400,y:180,h:12,w:30},{s:'14',x:300,y:800,h:9,w:10},
+    {s:'3',x:40,y:200,h:12,w:5},{s:'£9.95',x:400,y:200,h:12,w:30},{s:'Tel 0901 234 567',x:40,y:780,h:9,w:90}];
+  assert.equal(gtext(T),'VEGGIE SIDES 110\nBò\nRiviera Terre 1.050\n— 280\n3 £9.95\nTel 0901 234 567\n14');
+  assert.deepStrictEqual(gprices(T),[110,1050,280,14,9.95]);
+  assert.deepStrictEqual(gmiss([110,1050,280,9.95],{sections:[{items:[{name:'Riviera Terre',price:1050000},{name:'x',price_text:'£9.95'}]}]}),[110,280]);
+  // giá chung của mục: món không giá nhận giá mục, rồi cùng được nhân 1000 như mọi giá
+  assert.deepStrictEqual(gemMenus('M',[{sections:[{name:'Sides',kind:'food',price:110,items:[{name:'Funghi',price:110},{name:'Spinaci'}]},
+    {name:'Mains',kind:'food',items:[{name:'Lamb',price:1050000}]}]}])[0].content.sections[0].items,
+    [{name:'Funghi',price:110000,price_text:'110'},{name:'Spinaci',price:110000,price_text:'110'}]);
   const M=gemMenus('Quán',[
     {price_note:'Giá chưa gồm VAT',sections:[
       {name:'Khai vị',kind:'food',items:[{name:'Gỏi cuốn',price:65000},{name:'Chả giò',price:75}]},
@@ -99,5 +110,8 @@ assert.deepStrictEqual(J,{schema_version:1,menus:[{name:'Thử',type:'a_la_carte
   // menu ngoại tệ (mọi giá < 10.000) giữ nguyên; giá ly/chai phẩy thập phân kiểu châu Âu
   assert.equal(gemMenus('Kirin',[{sections:[{name:'Dim sum',kind:'food',items:[{name:'Har gow',price:9.95}]}]}])[0].content.sections[0].items[0].price,9.95);
   assert.deepStrictEqual(gemMenus('Pho',[{sections:[{name:'Red',kind:'drink',items:[{name:'Malbec',price_text:'5,75 / 7,50 / 20,75'}]}]}])[0].content.sections[0].items[0],
-    {name:'Malbec',price_text:'5,75 / 7,50 / 20,75',glass:5.75,bottle:20.75}); }
+    {name:'Malbec',price_text:'5,75 / 7,50 / 20,75',glass:5.75,bottle:20.75});
+  // nháy đơn phân cách nghìn ("1'500", menu Grill63); Gemini chỉ điền giá ly thì lấy cả ly lẫn chai từ chữ in
+  assert.deepStrictEqual(gemMenus('G',[{sections:[{name:'Red',kind:'drink',items:[{name:'Syrah',price_text:"320 / 1'500",glass:320000,bottle:null},
+    {name:'Tiger',price:130000}]}]}])[0].content.sections[0].items[0], {name:'Syrah',glass:320000,price_text:"320 / 1'500",bottle:1500000}); }
 console.log('ok');

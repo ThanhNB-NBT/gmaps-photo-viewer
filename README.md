@@ -147,8 +147,18 @@ Mở mục **Gemini (tuỳ chọn)** dưới thanh nút, dán một hoặc nhi�
   Đã thử: Pho-UK tách 9 mục món + 16 mục đồ uống (9 vang có ly/chai), SLB AYCE ra `set_menu` 1088 kèm điều kiện,
   Long Triều giữ `a_la_carte`. Flash-lite đôi khi xếp tasting menu thành món lẻ (DV-Saigon "Vittorio"), rà lại tay.
   Tự kiểm phần gom: `node check-menu.mjs`.
+- Chống sót món: mỗi trang gửi kèm **chữ trích từ lớp text của PDF** (chép tên/giá đúng từng chữ). Code đếm các mảnh chữ
+  trông như giá ("320", "1.050", "1'500", "— 280") rồi so với JSON Gemini trả; còn giá chưa có thì đọc lại trang **một lần**
+  kèm danh sách giá bị sót, giữ bản sót ít hơn, còn sót thì ghi tên trang ở dòng thông báo để soát tay. Món nhiều cỡ
+  ghi thành "`<tên> - <cỡ>`" mỗi cỡ một món; mục in một giá chung (VEGGIE SIDES 110) thì mọi món nhận giá đó.
+  PDF scan (không có lớp chữ) chỉ còn ảnh, không tự kiểm được.
+- Trang lỗi không bị bỏ im lặng: JSON hỏng / bị cắt thì đọc lại tối đa 3 lượt, hết lượt các trang thì đọc lại các
+  trang lỗi thêm một vòng; vẫn lỗi thì dòng thông báo ghi **CHƯA ĐỦ** kèm số trang. Bấm lại nút chỉ đọc các trang còn
+  thiếu (kết quả trang đã đọc được nhớ tới khi mở PDF khác).
+  Đã thử Mediterra 16 trang (flash-lite, 1 key): 47 món đủ, 2 lần 503 tự vượt qua, 68 giây.
 - Nhiều key: mỗi lượt chọn key đang không chờ và dùng ít nhất. Lỗi 429 theo ngày → key nghỉ tới hết ngày; theo phút →
-  chờ đúng `retryDelay` Google trả; key sai (400/403) → bỏ. Hết mọi key thì dừng và báo.
+  chờ đúng `retryDelay` Google trả; 503 → lùi dần 4, 8, 16… giây (tối đa 1 phút); một trang chờ quá 6 phút thì tính là
+  lỗi. Key sai (400/403) → bỏ. Hết mọi key thì dừng và báo.
 - Giới hạn hiển thị là **ước tính** của free tier (flash-lite 500 lượt/ngày, flash 20, gemma 14400) đếm trong máy;
   Google không trả số lượt còn lại qua API. Ngày tính theo giờ Los Angeles (lúc Google đặt lại hạn mức).
 - Model sinh ảnh và 3.1-pro không có hạn mức free nên bị lọc khỏi danh sách.
