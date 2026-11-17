@@ -65,6 +65,10 @@ Dùng API công khai của [gis.vn](https://gis.vn/api) (`vn2000.vn/api/location
 
 Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng ảnh món và điền sẵn tên món.
 
+Chọn nhiều PDF một lúc thì đọc lần lượt, ảnh mọi file nối vào cùng một lưới; tên ảnh thêm tiền tố tên PDF
+(`seoulkitchen_p01_…`), JSON gộp mỗi file thành một menu, zip tên `menu_<số file>-pdf_anh-mon.zip`. File lỗi được báo
+tên rồi bỏ qua, các file khác vẫn đọc tiếp.
+
 - Khung ảnh lấy từ chính lệnh vẽ trong PDF (vị trí ảnh giao với vùng clip), nên cắt đúng mép khung, không lẫn chữ hay nền.
   Bỏ qua icon, ảnh bị che hết và ảnh nền kín trang (trừ trang không có chữ nào — trang chỉ in một ảnh món; bìa cũng
   lọt vào, bỏ chọn tay). Ảnh vẽ trùng hai lần giữ một; từ 4 mảnh khít nhau trở lên (hình trang trí bị cắt thành lưới ô)

@@ -395,10 +395,10 @@
 <section data-tab="menu" hidden>
 <div class="panel" id="mdrop">
   <h2 class="ttl">Tách ảnh món từ menu PDF</h2>
-  <p class="lead">Chọn file hoặc dán link PDF menu: trang tự cắt ảnh từng món, điền tên món, rồi tải về hay tạo link.</p>
+  <p class="lead">Chọn một hay nhiều file, hoặc dán link PDF menu: trang tự cắt ảnh từng món, điền tên món, rồi tải về hay tạo link.</p>
   <div class="bar">
     <button id="mpick" class="pri">Chọn file PDF…</button>
-    <input type="file" id="mf" accept="application/pdf" hidden>
+    <input type="file" id="mf" accept="application/pdf" multiple hidden>
     <button id="mall" hidden></button>
     <button id="mup" hidden></button>
     <button id="msel" hidden></button>
@@ -420,7 +420,7 @@
 <div class="empty" id="mempty"><div class="empty-in">
   <strong>Chưa có menu nào</strong>
   <ol>
-    <li>Đưa menu vào: bấm <b>Chọn file PDF…</b>, kéo thả file vào khung trên, hoặc dán link PDF rồi bấm <b>Mở link</b>.</li>
+    <li>Đưa menu vào: bấm <b>Chọn file PDF…</b> (chọn được nhiều file một lúc), kéo thả file vào khung trên, hoặc dán link PDF rồi bấm <b>Mở link</b>.</li>
     <li>Trang tự cắt ảnh từng món và điền tên món in cạnh ảnh. Tên sai hay còn trống thì sửa ngay trong ô dưới ảnh.</li>
     <li>Bỏ tích ảnh không cần (ảnh trang trí, ảnh ghép nhiều món), rồi tải về hoặc tạo link.</li>
   </ol>
@@ -1241,7 +1241,7 @@ const slug=s=>s.replace(/đ/gi,'d').normalize('NFD').replace(/[̀-ͯ]/g,'').toLo
 // Tên file (chưa có đuôi): p<trang>_<mục>_<tên món>, không dấu. Mục = tiêu đề to nhất của trang.
 // Ảnh chưa có tên thì dùng số thứ tự trong lưới.
 const mname=c=>c.querySelector('input[type=text]').value.trim();
-const mbase=c=>['p'+String(c.pn).padStart(2,'0'), slug(c.sec), slug(mname(c))||'anh-'+([...mgrid.children].indexOf(c)+1)]
+const mbase=c=>[mmulti&&c.pdf, 'p'+String(c.pn).padStart(2,'0'), slug(c.sec), slug(mname(c))||'anh-'+([...mgrid.children].indexOf(c)+1)]
   .filter(Boolean).join('_');
 const mpicked=()=>[...mgrid.children].filter(c=>c.querySelector('.mck').checked);
 // Khung hướng dẫn chỉ hiện khi trang trống: ô link chưa có chữ và chưa có ảnh nào
@@ -1275,55 +1275,67 @@ function menuCard(blob,pn,sec,name,w,h){
     setTimeout(()=>{ l.classList.remove('ok'); l.textContent=c.link; },900); });
   c.append(box,foot,l); return c;
 }
-let mrun=0, mpdf='menu', mjs=null;   // mrun: chọn file mới giữa chừng thì lượt cũ tự dừng; mpdf: tên PDF, dùng đặt tên zip
-async function menuPdf(file){
-  if(!file) return;
+let mrun=0, mpdf='menu', mjs=null, mmulti=false;   // mrun: chọn file mới giữa chừng thì lượt cũ tự dừng; mpdf: tên zip/JSON
+// Nhận một hay nhiều PDF: đọc lần lượt, ảnh mọi file nối vào cùng một lưới; file lỗi thì báo rồi đọc tiếp file sau.
+async function menuPdf(files){
+  files=[].concat(files).filter(Boolean);
+  if(!files.length) return;
   const run=++mrun; mgrid.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
   mgrid.replaceChildren(); mempty.hidden=true; mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=mai.hidden=true; mjs=null;
-  mpdf=slug((file.name||'').replace(/\.pdf$/i,''))||'menu';
+  const pslug=f=>slug((f.name||'').replace(/\.pdf$/i,''))||'menu';
+  mmulti=files.length>1; mpdf=mmulti ? 'menu_'+files.length+'-pdf' : pslug(files[0]);
+  let named=0, items=0; const bad=[];
+  let pdfjs;
   try{
     mhint.textContent='Đang nạp bộ đọc PDF…';
-    const pdfjs=await import(PDFJS+'pdf.min.mjs');
+    pdfjs=await import(PDFJS+'pdf.min.mjs');
     pdfjs.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.mjs';
-    const doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
-    // Lượt 1: đọc chữ mọi trang để nhận ra chân trang (hotline, website…) = dòng lặp lại trên quá nửa số trang;
-    // không bỏ thì ảnh nằm sát đáy trang bị gán tên là dòng đó.
-    const TX=[], seen=new Map();
-    for(let pn=1; pn<=doc.numPages; pn++){
-      const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
-      TX[pn]=(await page.getTextContent()).items.filter(t=>t.str.trim()).map(t=>{
-        const m=pdfjs.Util.transform(vp.transform,t.transform); return {s:t.str,x:m[4],y:m[5],h:Math.hypot(m[2],m[3]),w:t.width}; });
-      new Set(TX[pn].map(t=>t.s.trim())).forEach(s=>seen.set(s,(seen.get(s)||0)+1));
-    }
-    const keep=t=>seen.get(t.s.trim())<=Math.max(2,doc.numPages/2);
-    if(run!==mrun) return;
-    const used=new Set();
-    mjs=menuJson(TX.slice(1).map(t=>({texts:t.filter(keep)})), (file.name||'Menu').replace(/\.pdf$/i,''), used);
-    const items=mjs.menus[0].content.sections.reduce((n,x)=>n+x.items.length,0);
-    mjson.textContent='Tải JSON menu ('+items+' món)'; mjson.hidden=!items;
-    let named=0;
-    for(let pn=1; pn<=doc.numPages; pn++){
-      if(run!==mrun) return;
-      mhint.textContent='Đang đọc trang '+pn+'/'+doc.numPages+'…';
-      const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
-      const texts=TX[pn].filter(keep), fr=menuFrames(await page.getOperatorList(),vp,pdfjs.OPS,pdfjs.Util,texts);
-      if(!fr.length) continue;
-      const sec=menuHead(texts).map(t=>t.s.trim()).join(' ');
-      for(const b of fr){
-        const c=await menuCrop(page,b), w=c.width, h=c.height;
-        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9)), name=menuName(b,texts,used);
-        if(run!==mrun) return;
-        if(name) named++;
-        const card=menuCard(blob,pn,sec,name,w,h); mgrid.append(card);
-        if(c.low){ card.low=1; card.querySelector('.st').textContent+=' · mờ'; }
+  }catch(e){ if(run===mrun){ mhint.textContent='Không nạp được bộ đọc PDF ('+e.message+').'; mguide(); } return; }
+  for(const [fi,file] of files.entries()){
+    const tag=mmulti ? 'File '+(fi+1)+'/'+files.length+': ' : '';
+    try{
+      const doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+      // Lượt 1: đọc chữ mọi trang để nhận ra chân trang (hotline, website…) = dòng lặp lại trên quá nửa số trang;
+      // không bỏ thì ảnh nằm sát đáy trang bị gán tên là dòng đó.
+      const TX=[], seen=new Map();
+      for(let pn=1; pn<=doc.numPages; pn++){
+        const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
+        TX[pn]=(await page.getTextContent()).items.filter(t=>t.str.trim()).map(t=>{
+          const m=pdfjs.Util.transform(vp.transform,t.transform); return {s:t.str,x:m[4],y:m[5],h:Math.hypot(m[2],m[3]),w:t.width}; });
+        new Set(TX[pn].map(t=>t.s.trim())).forEach(s=>seen.set(s,(seen.get(s)||0)+1));
       }
-    }
-    const n=mgrid.children.length;
-    mhint.textContent = n ? n+' ảnh, '+named+' ảnh tự nhận được tên món. Rà lại tên trước khi tải; ảnh ghép, ảnh trang trí thì bỏ tích.'
-      : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
-    if(items) mhint.textContent+=' JSON menu: '+items+' món có giá, '+mjs.menus[0].content.sections.length+' mục.';
-    mcount(); mdrop0.hidden=n===named; maiCount();
-  }catch(e){ if(run===mrun){ mhint.textContent='Không đọc được file PDF này ('+e.message+').'; mguide(); } }
+      const keep=t=>seen.get(t.s.trim())<=Math.max(2,doc.numPages/2);
+      if(run!==mrun) return;
+      const used=new Set();
+      const js=menuJson(TX.slice(1).map(t=>({texts:t.filter(keep)})), (file.name||'Menu').replace(/\.pdf$/i,''), used);
+      if(mjs) mjs.menus.push(...js.menus); else mjs=js;   // nhiều PDF = nhiều menu trong cùng một JSON
+      items+=js.menus[0].content.sections.reduce((n,x)=>n+x.items.length,0);
+      mjson.textContent='Tải JSON menu ('+items+' món)'; mjson.hidden=!items;
+      for(let pn=1; pn<=doc.numPages; pn++){
+        if(run!==mrun) return;
+        mhint.textContent=tag+'Đang đọc trang '+pn+'/'+doc.numPages+'…';
+        const page=await doc.getPage(pn), vp=page.getViewport({scale:1});
+        const texts=TX[pn].filter(keep), fr=menuFrames(await page.getOperatorList(),vp,pdfjs.OPS,pdfjs.Util,texts);
+        if(!fr.length) continue;
+        const sec=menuHead(texts).map(t=>t.s.trim()).join(' ');
+        for(const b of fr){
+          const c=await menuCrop(page,b), w=c.width, h=c.height;
+          const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9)), name=menuName(b,texts,used);
+          if(run!==mrun) return;
+          if(name) named++;
+          const card=menuCard(blob,pn,sec,name,w,h); mgrid.append(card);
+          card.pdf=pslug(file); if(mmulti) card.querySelector('.no').title=file.name+', trang '+pn;
+          if(c.low){ card.low=1; card.querySelector('.st').textContent+=' · mờ'; }
+        }
+      }
+    }catch(e){ if(run!==mrun) return; bad.push(file.name+' ('+e.message+')'); }
+  }
+  const n=mgrid.children.length;
+  mhint.textContent = n ? n+' ảnh'+(mmulti?' từ '+(files.length-bad.length)+' file':'')+', '+named+' ảnh tự nhận được tên món. Rà lại tên trước khi tải; ảnh ghép, ảnh trang trí thì bỏ tích.'
+    : bad.length===files.length ? '' : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
+  if(items) mhint.textContent+=' JSON menu: '+items+' món có giá, '+mjs.menus.reduce((k,m)=>k+m.content.sections.length,0)+' mục.';
+  if(bad.length) mhint.textContent+=' Không đọc được: '+bad.join('; ')+'.';
+  mcount(); mdrop0.hidden=n===named; maiCount();
 }
 // Cắt một khung ảnh món. Vẽ khung ở đúng độ nét ảnh gốc (b.d px/pt, cạnh dài tối đa 2400px): pdf.js phóng ảnh quá
 // ~1.33 lần thì tắt làm mượt, ảnh nhỏ bị vỡ ô vuông. Ảnh gốc thưa hơn MZ thì tự phóng lên MZ bằng nội suy chất lượng
@@ -1369,11 +1381,11 @@ document.getElementById('murlf').onsubmit=async e=>{
   await menuPdf(new File([await r.blob()],name,{type:'application/pdf'}));
 };
 document.getElementById('mpick').onclick=()=>mf.click();
-mf.onchange=()=>{ menuPdf(mf.files[0]); mf.value=''; };
+mf.onchange=()=>{ menuPdf([...mf.files]); mf.value=''; };
 mdrop.addEventListener('dragover',e=>{ e.preventDefault(); mdrop.classList.add('drag'); });
 mdrop.addEventListener('dragleave',e=>{ if(!mdrop.contains(e.relatedTarget)) mdrop.classList.remove('drag'); });
 mdrop.addEventListener('drop',e=>{ e.preventDefault(); mdrop.classList.remove('drag');
-  menuPdf([...e.dataTransfer.files].find(f=>/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name))); });
+  menuPdf([...e.dataTransfer.files].filter(f=>/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name))); });
 mjson.onclick=()=>saveBlob(new Blob([JSON.stringify(mjs,null,2)],{type:'application/json'}),mpdf+'_menu.json');
 mgrid.addEventListener('change',e=>{ if(e.target.className==='mck') mcount(); });
 msel.onclick=()=>{ const on=mpicked().length!==mgrid.children.length;
