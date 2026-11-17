@@ -1665,7 +1665,10 @@ function gtext(texts){
 // Mảnh chữ đứng riêng trông như giá ("320", "1.050", "— 280", "185.000++", "£9.95"): thước đo xem Gemini có sót món không.
 // Bỏ số nguyên < 10 (số trang, số miếng).
 const GPRICE=/^(?:[$£€₫]|VND|USD)?\s*(?:\d{1,3}(?:[.,'’]\d{3})*(?:[.,]\d{1,2})?|\d{4,7})\s*(?:k|K|đ|₫|VND|VNĐ|\+\+?)?$/;
-const gprices=texts=>texts.map(t=>gsp(t.s).replace(/^[—–\-.…·:\s]+/,'')).filter(s=>GPRICE.test(s))
+// Số có chữ (tên món, không phải đơn vị giá) đứng sát ngay bên phải là số thứ tự món ("88 Bún Thịt Nướng"): bỏ.
+const gnoname=(t,texts)=>t.w==null || !texts.some(u=>/\p{L}{2,}/u.test(u.s) && !/^\s*(vn[dđ]|usd|net)/i.test(u.s)
+  && Math.abs(u.y-t.y)<Math.max(2,t.h*.5) && u.x>=t.x+t.w-1 && u.x-(t.x+t.w)<t.h*1.5);
+const gprices=texts=>texts.filter(t=>gnoname(t,texts)).map(t=>gsp(t.s).replace(/^[—–\-.…·:\s]+/,'')).filter(s=>GPRICE.test(s))
   .map(s=>gnums(s)[0]).filter(v=>v>=10 || v%1);
 // Giá có trên trang mà không thấy đâu trong JSON Gemini trả (so cả dạng đã nhân 1000)
 const gmiss=(truth,j)=>{ const s=new Set(); for(const v of gnums(JSON.stringify(j))){ s.add(v); s.add(v/1000); }

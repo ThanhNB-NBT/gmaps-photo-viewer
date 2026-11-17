@@ -85,6 +85,10 @@ assert.deepStrictEqual(J,{schema_version:1,menus:[{name:'Thử',type:'a_la_carte
     {s:'3',x:40,y:200,h:12,w:5},{s:'£9.95',x:400,y:200,h:12,w:30},{s:'Tel 0901 234 567',x:40,y:780,h:9,w:90}];
   assert.equal(gtext(T),'VEGGIE SIDES 110\nBò\nRiviera Terre 1.050\n— 280\n3 £9.95\nTel 0901 234 567\n14');
   assert.deepStrictEqual(gprices(T),[110,1050,280,14,9.95]);
+  // số đứng sát trước tên món là số thứ tự món, không phải giá; giá rồi cột bên cạnh cách xa thì vẫn là giá; "65 k" vẫn là giá
+  assert.deepStrictEqual(gprices([{s:'88',x:40,y:100,h:12,w:14},{s:'Bún Thịt Nướng',x:58,y:100,h:12,w:90},
+    {s:'160',x:300,y:100,h:12,w:20},{s:'Hủ Tiếu',x:324,y:101,h:12,w:50},{s:'1.050',x:200,y:140,h:12,w:30},{s:'Pasta',x:300,y:140,h:12,w:40},
+    {s:'65',x:200,y:170,h:12,w:14},{s:'k',x:216,y:170,h:12,w:6},{s:'95',x:200,y:200,h:12,w:14},{s:'VND',x:216,y:200,h:12,w:24}]),[1050,65,95]);
   assert.deepStrictEqual(gmiss([110,1050,280,9.95],{sections:[{items:[{name:'Riviera Terre',price:1050000},{name:'x',price_text:'£9.95'}]}]}),[110,280]);
   // giá chung của mục: món không giá nhận giá mục, rồi cùng được nhân 1000 như mọi giá
   assert.deepStrictEqual(gemMenus('M',[{sections:[{name:'Sides',kind:'food',price:110,items:[{name:'Funghi',price:110},{name:'Spinaci'}]},
