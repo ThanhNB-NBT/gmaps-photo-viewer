@@ -477,7 +477,7 @@
 <section data-tab="up" hidden>
 <div class="panel" id="udrop">
   <h2 class="ttl">Up ảnh lấy link</h2>
-  <p class="lead">Kéo thả, dán (Ctrl+V) hoặc chọn ảnh: ảnh tự lên máy chủ riêng, mỗi ảnh ra một link công khai sống 7 ngày. Bấm <b>Copy link</b> dưới ảnh để copy, rê chuột lên ảnh xem cỡ và hạn.</p>
+  <p class="lead">Kéo thả, dán (Ctrl+V) hoặc chọn ảnh: ảnh tự lên máy chủ riêng, mỗi ảnh ra một link công khai sống 7 ngày. Bấm <b>tên ảnh</b> hoặc icon copy dưới ảnh để copy link, bấm ảnh để mở, rê chuột lên ảnh xem cỡ và hạn.</p>
   <div class="bar">
     <button id="upick" class="pri">Chọn ảnh…</button>
     <input type="file" id="uf" accept="image/*" multiple hidden>
@@ -1889,12 +1889,16 @@ function utile(list,name,src,n){
   a.append(img,st,no);
   const foot=document.createElement('div'); foot.className='foot';
   const cb=document.createElement('button'); cb.className='ucp'; cb.type='button'; cb.disabled=true; cb.textContent='Đang chờ…';
-  cb.onclick=()=>copy(li.link).then(ok=>{ cb.textContent=ok?'Đã copy':'Copy không được'; setTimeout(()=>cb.textContent='Copy link',900); });
-  foot.append(cb); li.append(a,foot); list.append(li);
-  return {li,a,img,st,cb};
+  // Tên ảnh là thứ người dùng cần nhìn; bấm tên hay icon đều copy link.
+  const ci=document.createElement('button'); ci.className='x cp'; ci.type='button'; ci.disabled=true; ci.innerHTML=CPI;
+  ci.title='Copy link'; ci.setAttribute('aria-label','Copy link '+name);
+  cb.onclick=ci.onclick=()=>copy(li.link).then(ok=>{ cb.textContent=ok?'Đã copy link':'Copy không được'; ci.textContent=ok?'✓':'!';
+    ci.classList.toggle('ok',ok); setTimeout(()=>{ cb.textContent=name; ci.innerHTML=CPI; ci.classList.remove('ok'); },900); });
+  foot.append(cb,ci); li.append(a,foot); list.append(li);
+  return {li,a,img,st,cb,ci};
 }
-function udone({li,a,st,cb},e,note=''){
-  li.link=a.href=e.url; li.classList.add('done'); cb.disabled=false; cb.textContent='Copy link'; st.textContent=e.meta||'';
+function udone({li,a,st,cb,ci},e,note=''){
+  li.link=a.href=e.url; li.classList.add('done'); cb.disabled=ci.disabled=false; cb.textContent=e.name; cb.title='Bấm để copy link'; st.textContent=e.meta||'';
   li.title=[e.name, e.url, note+'hết hạn '+new Date(e.expires*1000).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'})].join('\n');
 }
 // Lịch sử up nằm trong trình duyệt này (không có tài khoản): mở lại trang vẫn thấy các link còn hạn, mới nhất trước.
@@ -1957,7 +1961,7 @@ function uadd(files){
   if(!files.length){ uhint.textContent='Không thấy ảnh nào trong số file vừa đưa vào.'; return; }
   if(!ukey.value.trim()){ ukeyd.open=true; ukey.focus(); uhint.textContent='Dán khoá máy chủ ảnh vào ô bên dưới rồi đưa ảnh vào lại.'; return; }
   for(const f of files){
-    const {li,a,img,st,cb}=utile(ulist,f.name,URL.createObjectURL(f),ulist.children.length+1);
+    const t=utile(ulist,f.name,URL.createObjectURL(f),ulist.children.length+1), {li,img,cb}=t;
     uq=uq.then(async()=>{
       cb.textContent='Đang tải lên…';
       try{
@@ -1971,7 +1975,7 @@ function uadd(files){
         if(!r.ok) throw new Error(await r.text()||'HTTP '+r.status);
         const j=await r.json();
         const e={url:j.url, expires:j.expires, name:f.name, meta};
-        udone({li,a,st,cb},e,b===f?'':'đã đổi sang JPEG · ');
+        udone(t,e,b===f?'':'đã đổi sang JPEG · ');
         uhsave([e,...uhget()]); uhadd(e); uhsum(uhl.children.length);
         ucount(); if(fresh) uhsync();   // mã vừa tạo: đưa luôn link cũ trong trình duyệt lên mã
       }catch(e){ cb.textContent='Lỗi: '+e.message; cb.classList.add('bad'); li.title=f.name+'\nLỗi: '+e.message; }
