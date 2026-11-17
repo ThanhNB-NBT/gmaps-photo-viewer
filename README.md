@@ -34,7 +34,8 @@ Dán xong là tự chuẩn hoá và hiển thị ngay (hoặc nhấn **Enter** s
   kiểu ảnh máy chủ trả về. Ảnh nào máy chủ không cho trang đọc thì báo "không tải được", mở ảnh rồi lưu tay.
 - Link được đánh số, số nằm **ngoài** ô nhập nên bôi đen chép link không dính số vào.
   Rê chuột lên một dòng link thì số đó và ô ảnh tương ứng cùng sáng lên, và ngược lại.
-- **Copy tất cả** chép toàn bộ ô nhập. Nút `×` xoá từng link — một cột bên phải ô nhập
+- **Copy tất cả** chép toàn bộ ô nhập. Copy một link: nút copy ở cột bên phải ô nhập, ngay hàng số thứ tự
+  (khỏi kéo xuống tìm ô ảnh), hoặc bấm dòng link dưới ảnh. Ô ảnh xếp lưới nhỏ (từ 150px, điện thoại 2 cột). Nút `×` xoá từng link — một cột bên phải ô nhập
   (cũng nằm ngoài textarea như số thứ tự), và một nút nữa dưới mỗi ô ảnh; xoá xong
   số tự đánh lại từ 1.
 
@@ -155,7 +156,8 @@ Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một ho�
 - Chống sót món: mỗi trang gửi kèm **chữ trích từ lớp text của PDF** (chép tên/giá đúng từng chữ). Code đếm các mảnh chữ
   trông như giá ("320", "1.050", "1'500", "— 280") rồi so với JSON Gemini trả; còn giá chưa có thì đọc lại trang **một lần**
   kèm danh sách giá bị sót, giữ bản sót ít hơn, còn sót thì ghi tên trang ở dòng thông báo để soát tay. Món nhiều cỡ
-  ghi thành "`<tên> - <cỡ>`" mỗi cỡ một món; mục in một giá chung (VEGGIE SIDES 110) thì mọi món nhận giá đó.
+  hay nhiều lựa chọn in dưới tên (Chicken 270 / Prawns 300) ghi thành "`<tên> - <cỡ/lựa chọn>`" mỗi cái một món;
+  dòng gọi thêm ngay dưới một món ("+ Add Cheese 60") vào `note` của món đó, không thành món riêng; mục in một giá chung (VEGGIE SIDES 110) thì mọi món nhận giá đó.
   PDF scan (không có lớp chữ) chỉ còn ảnh, không tự kiểm được.
 - Trang lỗi không bị bỏ im lặng: JSON hỏng / bị cắt thì đọc lại tối đa 3 lượt, hết lượt các trang thì đọc lại các
   trang lỗi thêm một vòng; vẫn lỗi thì dòng thông báo ghi **CHƯA ĐỦ** kèm số trang. Bấm lại nút chỉ đọc các trang còn
@@ -165,8 +167,11 @@ Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một ho�
   nhận request tiếp. Không mở mỗi trang một luồng vì free tier giới hạn lượt/phút, mở quá nhiều chỉ ăn 429.
   Thử giả lập (2 key, mỗi request 1,5 giây) PDF 26 trang: tối đa 7 request cùng lúc, chia 17/17 cho 2 key, 16 giây
   thay vì ~40 giây đọc tuần tự.
-- Nhiều key: mỗi lượt chọn key đang không chờ và dùng ít nhất. Lỗi 429 theo ngày → key nghỉ tới hết ngày; theo phút →
-  chờ đúng `retryDelay` Google trả; 503 → lùi dần 4, 8, 16… giây (tối đa 1 phút); một trang chờ quá 6 phút thì tính là
+- Nhiều key: mỗi lượt chọn key đang không chờ và dùng ít nhất, và tự giữ nhịp dưới hạn mức phút của free tier
+  (flash-lite 14, flash 4, gemma 29 request/phút mỗi key). Lỗi 429 theo phút → chờ đúng `retryDelay` Google trả.
+  429 ghi "theo ngày" **chưa tin ngay**: gửi dồn dập thì Google cũng trả nhãn này dù còn lượt (thử thật: 4/18 request
+  bị, bảng AI Studio vẫn 256/500), nên key chỉ nghỉ 1 phút; gạch key tới hết ngày khi đã đếm ≥95% hạn mức ngày hoặc
+  lỗi "theo ngày" kéo dài 3 phút không xen request nào qua. 503 → lùi dần 4, 8, 16… giây (tối đa 1 phút); một trang chờ quá 6 phút thì tính là
   lỗi. Key sai (400/403) → bỏ. Hết mọi key thì dừng và báo.
 - Giới hạn hiển thị là **ước tính** của free tier (flash-lite 500 lượt/ngày, flash 20, gemma 14400) đếm trong máy;
   Google không trả số lượt còn lại qua API. Ngày tính theo giờ Los Angeles (lúc Google đặt lại hạn mức).
@@ -184,7 +189,7 @@ Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một ho�
 ## Up ảnh lấy link
 
 Tab **Up ảnh**: kéo thả, dán (Ctrl+V) hoặc chọn nhiều ảnh, mỗi ảnh tự tải lên cùng máy chủ ảnh tạm với Menu PDF
-(`POST /up`, cần khoá) và ra một link công khai sống 7 ngày, hiện cạnh ảnh xem trước. Máy chủ chỉ nhận JPEG ≤10 MB
+(`POST /up`, cần khoá) và ra một link công khai sống 7 ngày. Ảnh xếp lưới ô nhỏ (điện thoại 2 cột), nút **Copy link** ngay dưới mỗi ảnh. Máy chủ chỉ nhận JPEG ≤10 MB
 nên ảnh khác (PNG, WebP…) được vẽ lại ra JPEG trong trình duyệt (chỗ trong suốt thành nền trắng, GIF mất chuyển động),
 ảnh quá 10 MB thu nhỏ dần cho vừa. Danh sách chỉ sống trong tab, tải lại trang là mất (link vẫn còn hạn).
 
