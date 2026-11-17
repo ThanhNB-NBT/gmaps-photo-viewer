@@ -126,6 +126,13 @@ Tab **Menu PDF**: chọn (hoặc kéo thả) file PDF menu, trang cắt từng �
   duy nhất của trang).
 - Tự kiểm phần lõi: `node check-menu.mjs`.
 
+## Up ảnh lấy link
+
+Tab **Up ảnh**: kéo thả, dán (Ctrl+V) hoặc chọn nhiều ảnh, mỗi ảnh tự tải lên cùng máy chủ ảnh tạm với Menu PDF
+(`POST /up`, cần khoá) và ra một link công khai sống 7 ngày, hiện cạnh ảnh xem trước. Máy chủ chỉ nhận JPEG ≤10 MB
+nên ảnh khác (PNG, WebP…) được vẽ lại ra JPEG trong trình duyệt (chỗ trong suốt thành nền trắng, GIF mất chuyển động),
+ảnh quá 10 MB thu nhỏ dần cho vừa. Danh sách chỉ sống trong tab, tải lại trang là mất (link vẫn còn hạn).
+
 ## Tải video TikTok / Facebook / YouTube / Instagram / Google Maps
 
 Dán link lấy từ nút **Chia sẻ → Sao chép liên kết** vào ô *Tải từ link* ở tab **Video**, nhấn **Tải** (hoặc Enter).

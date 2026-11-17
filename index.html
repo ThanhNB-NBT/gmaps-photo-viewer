@@ -257,6 +257,18 @@
   #mdrop.drag{outline:2px dashed var(--water)}
   #mgrid .mck{position:absolute;top:8px;right:8px;z-index:1;width:22px;height:22px;margin:0;accent-color:var(--water);cursor:pointer}
   #mgrid .card:not(:has(.mck:checked)) img{opacity:.3}
+  #udrop.drag{outline:2px dashed var(--water)}
+  .ulist{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
+  .urow{display:flex;gap:14px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px}
+  .urow .th{flex:none;width:160px;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:var(--img)}
+  .urow .th img{width:100%;height:100%;object-fit:contain;display:block}
+  .urow .in{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .urow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .urow .mt{color:var(--mut);font-size:12.5px}
+  .urow .mt.bad{color:var(--pin)}
+  .urow .lk{display:flex;gap:6px}
+  .urow .lk input{font:12px ui-monospace,Consolas,monospace}
+  @media (max-width:520px){.urow{align-items:flex-start}.urow .th{width:96px}.urow .lk{flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -266,6 +278,7 @@
     <a href="#maps">Ảnh &amp; địa chỉ</a>
     <a href="#video">Video</a>
     <a href="#menu">Menu PDF</a>
+    <a href="#up">Up ảnh</a>
     <a href="#guide">Hướng dẫn</a>
   </nav>
   <button id="theme" title="Đổi giao diện"></button>
@@ -430,6 +443,25 @@
     được lưu trên máy chủ riêng, trong 7 ngày.</p>
 </div></div>
 <div class="grid" id="mgrid"></div>
+</section>
+
+<section data-tab="up" hidden>
+<div class="panel" id="udrop">
+  <h2 class="ttl">Up ảnh lấy link</h2>
+  <p class="lead">Kéo thả, dán (Ctrl+V) hoặc chọn ảnh: ảnh tự lên máy chủ riêng, mỗi ảnh ra một link công khai sống 7 ngày.</p>
+  <div class="bar">
+    <button id="upick" class="pri">Chọn ảnh…</button>
+    <input type="file" id="uf" accept="image/*" multiple hidden>
+    <button id="ucopy" hidden>Copy tất cả link</button>
+  </div>
+  <p class="hint" id="uhint" aria-live="polite">PNG, WebP… được đổi sang JPEG trước khi tải lên; ảnh trên 10 MB được thu nhỏ.</p>
+  <details class="tok" id="ukeyd">
+    <summary>Khoá máy chủ ảnh</summary>
+    <div class="row"><input type="password" id="ukey" spellcheck="false" autocomplete="off" aria-label="Khoá máy chủ ảnh"></div>
+    <p>Dùng chung với tab Menu PDF. Khoá lưu trong trình duyệt này, không nằm trong trang.</p>
+  </details>
+</div>
+<ul class="ulist" id="ulist"></ul>
 </section>
 
 <section data-tab="guide" class="guide" hidden>
@@ -709,7 +741,7 @@ sysDark.addEventListener('change',()=>{ if(!root.hasAttribute('data-theme')) app
 // Tab nằm trong #hash: Back/Forward và chia sẻ link đều ra đúng tab, không cần lưu gì.
 // Không có phần tử nào mang id "maps"/"video" nên đổi hash không làm trang nhảy cuộn.
 function showTab(){
-  const t = {'#video':'video','#menu':'menu','#guide':'guide'}[location.hash] || 'maps';
+  const t = {'#video':'video','#menu':'menu','#up':'up','#guide':'guide'}[location.hash] || 'maps';
   document.querySelectorAll('[data-tab]').forEach(s=>s.hidden = s.dataset.tab!==t);
   document.querySelectorAll('.tabs a').forEach(a=>a.hash==='#'+t
     ? a.setAttribute('aria-current','page') : a.removeAttribute('aria-current'));
@@ -1393,6 +1425,83 @@ mup.onclick=async()=>{
       +' Bấm link dưới ảnh để copy riêng; file zip có thêm cột link trong CSV.' : '')
     +(err ? ' Dừng vì lỗi: '+err+'.' : '');
   mcount();
+};
+
+/* ---------- up ảnh lấy link: cùng máy chủ ảnh tạm với Menu PDF, mỗi ảnh một link 7 ngày ---------- */
+const usec=document.querySelector('[data-tab=up]'), udrop=document.getElementById('udrop'), ulist=document.getElementById('ulist'),
+      uhint=document.getElementById('uhint'), uf=document.getElementById('uf'), ukey=document.getElementById('ukey'),
+      ukeyd=document.getElementById('ukeyd'), ucopy=document.getElementById('ucopy');
+// Một khoá cho cả hai tab: sửa ô bên này thì ô bên kia đổi theo.
+ukey.value=mkey.value;
+ukey.onchange=()=>{ mkey.value=ukey.value.trim(); mkey.onchange(); };
+mkey.addEventListener('change',()=>{ ukey.value=mkey.value; });
+const UMAX=10*1024*1024;   // = MAXUP trong fbrelay.py
+// Máy chủ chỉ nhận JPEG ≤10 MB: ảnh khác thì vẽ lại ra JPEG (nền trắng thay chỗ trong suốt), quá cỡ thì thu nhỏ dần.
+async function toJpeg(f){
+  if(f.type==='image/jpeg' && f.size<=UMAX) return f;
+  const bm=await createImageBitmap(f).catch(()=>{ throw new Error('trình duyệt không đọc được định dạng này'); });
+  let s=1, b;
+  try{
+    do{
+      const cv=document.createElement('canvas'); cv.width=Math.round(bm.width*s); cv.height=Math.round(bm.height*s);
+      const g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.drawImage(bm,0,0,cv.width,cv.height);
+      b=await new Promise(r=>cv.toBlob(r,'image/jpeg',.92));
+      if(!b) throw new Error('ảnh quá lớn, trình duyệt không vẽ lại được');
+      s*=Math.sqrt(UMAX/b.size)*.9;
+    }while(b.size>UMAX);
+  }finally{ bm.close(); }
+  return b;
+}
+const kb=n=>n<1048576 ? Math.round(n/1024)+' KB' : (n/1048576).toFixed(1)+' MB';
+function ucount(){ const n=[...ulist.children].filter(l=>l.link).length; ucopy.hidden=!n; ucopy.textContent='Copy tất cả link ('+n+')'; }
+let uq=Promise.resolve();   // tải lần lượt từng ảnh: mạng nhà upload chậm, dồn cùng lúc thì ảnh nào cũng dễ quá 60 giây
+function uadd(files){
+  files=[...files].filter(f=>f.type.startsWith('image/'));
+  if(!files.length){ uhint.textContent='Không thấy ảnh nào trong số file vừa đưa vào.'; return; }
+  if(!ukey.value.trim()){ ukeyd.open=true; ukey.focus(); uhint.textContent='Dán khoá máy chủ ảnh vào ô bên dưới rồi đưa ảnh vào lại.'; return; }
+  for(const f of files){
+    const li=document.createElement('li'); li.className='urow';
+    const a=document.createElement('a'); a.className='th'; a.target='_blank'; a.rel='noopener noreferrer';
+    const img=new Image(); img.alt=f.name; img.src=a.href=URL.createObjectURL(f); a.append(img);
+    const inn=document.createElement('div'); inn.className='in';
+    const nm=document.createElement('div'); nm.className='nm'; nm.textContent=f.name; nm.title=f.name;
+    const mt=document.createElement('div'); mt.className='mt'; mt.textContent='Đang chờ…';
+    const lk=document.createElement('div'); lk.className='lk'; lk.hidden=true;
+    const inp=document.createElement('input'); inp.type='text'; inp.readOnly=true; inp.setAttribute('aria-label','Link ảnh '+f.name);
+    inp.onfocus=()=>inp.select();
+    const cb=document.createElement('button'); cb.textContent='Copy';
+    cb.onclick=()=>copy(li.link).then(ok=>{ cb.textContent=ok?'Đã copy':'Copy không được'; setTimeout(()=>cb.textContent='Copy',900); });
+    lk.append(inp,cb); inn.append(nm,mt,lk); li.append(a,inn); ulist.append(li);
+    uq=uq.then(async()=>{
+      mt.textContent='Đang tải lên…';
+      try{
+        const b=await toJpeg(f);
+        const r=await fetch(IMGUP+'/up?name='+encodeURIComponent(slug(f.name.replace(/\.[^.]*$/,''))),{method:'POST',body:b,
+          headers:{'X-Key':ukey.value.trim(),'Content-Type':'image/jpeg'},signal:AbortSignal.timeout(60000)});
+        if(r.status===403){ ukeyd.open=true; throw new Error('sai khoá'); }
+        if(!r.ok) throw new Error(await r.text()||'HTTP '+r.status);
+        const j=await r.json();
+        li.link=inp.value=a.href=j.url; lk.hidden=false;
+        mt.textContent=[img.naturalWidth ? img.naturalWidth+'×'+img.naturalHeight : '', kb(b.size)+(b===f?'':' (đã đổi sang JPEG)'),
+          'hết hạn '+new Date(j.expires*1000).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'})].filter(Boolean).join(' · ');
+        ucount();
+      }catch(e){ mt.textContent='Lỗi: '+e.message; mt.classList.add('bad'); }
+    });
+  }
+}
+document.getElementById('upick').onclick=()=>uf.click();
+uf.onchange=()=>{ uadd(uf.files); uf.value=''; };
+// Nghe kéo thả trên cả tab: thả lệch xuống danh sách thì trình duyệt cũng không mở ảnh đè lên trang.
+usec.addEventListener('dragover',e=>{ e.preventDefault(); udrop.classList.add('drag'); });
+usec.addEventListener('dragleave',e=>{ if(!usec.contains(e.relatedTarget)) udrop.classList.remove('drag'); });
+usec.addEventListener('drop',e=>{ e.preventDefault(); udrop.classList.remove('drag'); uadd(e.dataTransfer.files); });
+addEventListener('paste',e=>{
+  if(location.hash!=='#up' || !e.clipboardData.files.length) return;   // dán chữ (vd dán khoá) thì để yên
+  e.preventDefault(); uadd(e.clipboardData.files);
+});
+ucopy.onclick=async()=>{
+  const ls=[...ulist.children].filter(l=>l.link).map(l=>l.link);
+  uhint.textContent=await copy(ls.join('\n')) ? 'Đã copy '+ls.length+' link, mỗi link một dòng.' : 'Copy không được.';
 };
 
 /* ---------- tải video TikTok / Facebook / YouTube / Instagram từ link Chia sẻ ---------- */
