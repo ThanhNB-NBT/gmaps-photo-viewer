@@ -280,6 +280,16 @@
   .ucp.bad{color:var(--pin)}
   .ut .box{display:block}   /* box ở đây là thẻ a: inline thì aspect-ratio vô tác dụng, ảnh đẩy nút copy ra ngoài */
   .ut:not(.done) .box img{opacity:.5}
+  .ut{position:relative}
+  .ut .x.cp{position:absolute;top:8px;right:8px;z-index:1;width:28px;height:28px;background:rgba(0,0,0,.62);color:#fff}
+  .ut .x.cp.ok{background:var(--water);color:var(--water-fg)}
+  .ut:not(.done) .x.cp{display:none}
+  /* Trỏ chuột: tên đầy đủ (xuống dòng được) + cỡ ảnh, phủ dải dưới ảnh. */
+  .ut .st.dim{inset:auto 0 0 0;display:block;border-radius:0;padding:6px 10px;white-space:pre-line;
+    overflow-wrap:anywhere;line-height:1.35;text-align:left;background:rgba(0,0,0,.72)}
+  /* 165px: màn ~1780px từ 11 xuống 10 ảnh/hàng, cho tên ảnh thêm chỗ. */
+  #ulist,#uhl{grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
+  @media (max-width:560px){ #ulist,#uhl{grid-template-columns:repeat(2,1fr)} }
 </style>
 </head>
 <body>
@@ -1894,11 +1904,12 @@ function utile(list,name,src,n){
   ci.title='Copy link'; ci.setAttribute('aria-label','Copy link '+name);
   cb.onclick=ci.onclick=()=>copy(li.link).then(ok=>{ cb.textContent=ok?'Đã copy link':'Copy không được'; ci.textContent=ok?'✓':'!';
     ci.classList.toggle('ok',ok); setTimeout(()=>{ cb.textContent=name; ci.innerHTML=CPI; ci.classList.remove('ok'); },900); });
-  foot.append(cb,ci); li.append(a,foot); list.append(li);
+  // Icon nằm trên li, không trong thẻ a: bấm copy mà không mở ảnh (nút trong <a> cũng là HTML sai).
+  foot.append(cb); li.append(a,foot,ci); list.append(li);
   return {li,a,img,st,cb,ci};
 }
 function udone({li,a,st,cb,ci},e,note=''){
-  li.link=a.href=e.url; li.classList.add('done'); cb.disabled=ci.disabled=false; cb.textContent=e.name; cb.title='Bấm để copy link'; st.textContent=e.meta||'';
+  li.link=a.href=e.url; li.classList.add('done'); cb.disabled=ci.disabled=false; cb.textContent=e.name; cb.title='Bấm để copy link'; st.textContent=e.name+(e.meta?'\n'+e.meta:'');
   li.title=[e.name, e.url, note+'hết hạn '+new Date(e.expires*1000).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'})].join('\n');
 }
 // Lịch sử up nằm trong trình duyệt này (không có tài khoản): mở lại trang vẫn thấy các link còn hạn, mới nhất trước.

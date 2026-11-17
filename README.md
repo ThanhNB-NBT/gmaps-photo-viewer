@@ -189,7 +189,7 @@ Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một ho�
 ## Up ảnh lấy link
 
 Tab **Up ảnh**: kéo thả, dán (Ctrl+V) hoặc chọn nhiều ảnh, mỗi ảnh tự tải lên cùng máy chủ ảnh tạm với Menu PDF
-(`POST /up`, cần khoá) và ra một link công khai sống 7 ngày. Ảnh xếp lưới ô nhỏ (điện thoại 2 cột), dưới mỗi ảnh là tên ảnh + icon copy (bấm cái nào cũng copy link), bấm ảnh mở bản đã tải. Máy chủ chỉ nhận JPEG ≤10 MB
+(`POST /up`, cần khoá) và ra một link công khai sống 7 ngày. Ảnh xếp lưới ô nhỏ (điện thoại 2 cột), dưới mỗi ảnh là tên ảnh, góc trên phải có icon copy (bấm tên hay icon đều copy link), trỏ chuột vào ảnh hiện tên đầy đủ, bấm ảnh mở bản đã tải. Máy chủ chỉ nhận JPEG ≤10 MB
 nên ảnh khác (PNG, WebP…) được vẽ lại ra JPEG trong trình duyệt (chỗ trong suốt thành nền trắng, GIF mất chuyển động),
 ảnh quá 10 MB thu nhỏ dần cho vừa. Mỗi ảnh up xong được ghi vào lịch sử trong `localStorage` (`gpv-uphist`: link,
 hạn, tên, cỡ) và hiện ngay ở mục **Ảnh đã up trên trình duyệt này** (mục luôn hiện, kể cả khi trống, để người dùng
