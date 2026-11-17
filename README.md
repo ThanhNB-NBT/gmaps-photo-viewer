@@ -139,6 +139,14 @@ Mở mục **Gemini (tuỳ chọn)** dưới thanh nút, dán một hoặc nhi�
   đánh số các ảnh đã cắt, theo thứ tự đọc (trên → dưới, trái → phải). Gemini trả tên món cho từng khung số và toàn bộ
   mục/món/giá của trang; tên chỉ ghi đè khi Gemini trả tên không rỗng (khung trang trí giữ tên cũ), JSON menu được
   thay bằng bản Gemini viết (mục trùng tên liền nhau được gộp qua các trang).
+- JSON Gemini tách theo dạng menu: Gemini gắn nhãn từng mục là món lẻ / đồ uống / thuộc set, code gom lại thành
+  `a_la_carte` (tên PDF), `beverage` (`<tên PDF> - Đồ uống`) và mỗi set có giá một `set_menu` (tên set, `price`, `terms`
+  là danh sách điều kiện in kèm); set không thấy giá ở trang nào thì trả về `a_la_carte`. Mục "chọn N món" có `choose`.
+  Đồ uống in giá ly và chai ghi `glass`/`bottle` thay cho `price`; menu in nhiều cỡ ly ("5,50 / 7,25 / 19,95") thì code
+  lấy số đầu làm giá ly, số cuối làm giá chai. Chưa điền `courses`, `periods`, `images`.
+  Đã thử: Pho-UK tách 9 mục món + 16 mục đồ uống (9 vang có ly/chai), SLB AYCE ra `set_menu` 1088 kèm điều kiện,
+  Long Triều giữ `a_la_carte`. Flash-lite đôi khi xếp tasting menu thành món lẻ (DV-Saigon "Vittorio"), rà lại tay.
+  Tự kiểm phần gom: `node check-menu.mjs`.
 - Nhiều key: mỗi lượt chọn key đang không chờ và dùng ít nhất. Lỗi 429 theo ngày → key nghỉ tới hết ngày; theo phút →
   chờ đúng `retryDelay` Google trả; key sai (400/403) → bỏ. Hết mọi key thì dừng và báo.
 - Giới hạn hiển thị là **ước tính** của free tier (flash-lite 500 lượt/ngày, flash 20, gemma 14400) đếm trong máy;

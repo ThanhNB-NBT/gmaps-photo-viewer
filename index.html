@@ -1554,32 +1554,84 @@ async function gemPage(page,cs){
 }
 const GEM_PROMPT=n=>`Ảnh là một trang menu nhà hàng.${n ? ` Các khung đỏ đánh số #1 đến #${n} là ảnh món đã được cắt ra.` : ''}
 Trả về JSON:
-- sections: các mục món trên trang theo thứ tự đọc, mỗi mục {name, items}. Mỗi món {name, note, price, price_text}:
+- sections: các mục món trên trang theo thứ tự đọc, mỗi mục {name, kind, set, set_price, set_terms, choose, items}.
+  kind: "food" (món gọi lẻ, mỗi món một giá), "drink" (đồ uống: bia, rượu, vang, cocktail, nước, trà, cà phê),
+  "set" (thuộc một set menu / combo / buffet / tasting menu bán theo MỘT giá chung cho cả set hoặc mỗi người).
+  Với kind "set": set là tên set (mọi mục của cùng một set ghi cùng tên set, kể cả ở trang khác), set_price là giá
+  của set thành số (không thấy giá trên trang thì null), set_terms là các điều kiện in kèm set (giờ áp dụng, tối thiểu
+  mấy người, giá mỗi người, đồ uống kèm...), không có thì []. Kind khác thì set "", set_price null, set_terms [].
+  choose: mục ghi "chọn 1", "choice of", "lựa chọn 2 món" thì là số món được chọn, không thì 0.
+  Mỗi món {name, note, price, price_text, glass, bottle}:
   name giữ đúng chữ in trên menu (không dịch, không sửa); note là mô tả hay ghi chú in kèm món, không có thì "";
   price_text là giá đúng như in; price là giá thành số đầy đủ (menu Việt ghi "290" hay "290k" nghĩa là 290000), không có giá thì null.
-  Món có nhiều mức giá thì price_text ghi đủ, price lấy mức đầu. Mục không có tên in trên trang thì name "".
+  Món trong set thường không có giá riêng: price null. Đồ uống có giá ly và giá chai thì glass, bottle là hai giá đó
+  (số đầy đủ), price null; không thì glass, bottle null.
+  Món có nhiều mức giá khác thì price_text ghi đủ, price lấy mức đầu. Mục không có tên in trên trang thì name "".
   Không đưa vào: tên nhà hàng, địa chỉ, hotline, giờ mở cửa, chú thích chung.
 - price_note: ghi chú chung về giá (VAT, phí phục vụ) nếu trang có, không có thì "".
 - images: ${n ? `với mỗi khung #i: {i, name} với name là tên món mà ảnh đó minh hoạ, viết đúng như trong sections; ảnh trang trí, logo, ảnh không gắn với món nào thì name "".` : 'trang không có khung ảnh nào, để mảng rỗng.'}
 Trang không có món nào (bìa, giới thiệu) thì sections rỗng.`;
 const GEM_SCHEMA={type:'OBJECT',required:['sections','images'],properties:{
-  sections:{type:'ARRAY',items:{type:'OBJECT',required:['name','items'],properties:{name:{type:'STRING'},
+  sections:{type:'ARRAY',items:{type:'OBJECT',required:['name','kind','items'],properties:{name:{type:'STRING'},
+    kind:{type:'STRING',enum:['food','drink','set']},set:{type:'STRING'},set_price:{type:'NUMBER',nullable:true},
+    set_terms:{type:'ARRAY',items:{type:'STRING'}},choose:{type:'INTEGER'},
     items:{type:'ARRAY',items:{type:'OBJECT',required:['name'],properties:{name:{type:'STRING'},note:{type:'STRING'},
-      price:{type:'NUMBER',nullable:true},price_text:{type:'STRING'}}}}}}},
+      price:{type:'NUMBER',nullable:true},price_text:{type:'STRING'},
+      glass:{type:'NUMBER',nullable:true},bottle:{type:'NUMBER',nullable:true}}}}}}},
   price_note:{type:'STRING'},
   images:{type:'ARRAY',items:{type:'OBJECT',required:['i','name'],properties:{i:{type:'INTEGER'},name:{type:'STRING'}}}}}};
 // Gemma không có chế độ JSON qua API: chỉ dựa vào prompt rồi bóc ```json``` khi parse.
 const gcfg=m=>/^gemini/.test(m) ? {responseMimeType:'application/json',responseSchema:GEM_SCHEMA} : {};
-// Cùng khuôn với menuJson: {name, note?, price?, price_text?}
+/*gem-core*/
 const gsp=s=>String(s||'').replace(/\s+/g,' ').trim();   // Gemini giữ cả xuống dòng trong tên song ngữ
+const gnum=v=>typeof v==='number' && v>0 ? v : 0;
+// số trong chuỗi giá: "1,288" / "1.200.000" là phân cách nghìn, "5,50" là phẩy thập phân
+const gnums=t=>(String(t).match(/\d+(?:[.,]\d+)*/g)||[]).map(x=>/^\d{1,3}([.,]\d{3})+$/.test(x) ? +x.replace(/[.,]/g,'') : +x.replace(',','.'));
+// Cùng khuôn với menuJson: {name, note?, price?, price_text?}, đồ uống ly/chai thì {glass?, bottle?} thay cho price
 const gitem=x=>{ const it={name:gsp(x.name)}; if(gsp(x.note)) it.note=gsp(x.note);
-  if(typeof x.price==='number') it.price=x.price; if(gsp(x.price_text) && gsp(x.price_text)!==String(x.price)) it.price_text=gsp(x.price_text); return it; };
+  if(gnum(x.glass)||gnum(x.bottle)){ if(gnum(x.glass)) it.glass=x.glass; if(gnum(x.bottle)) it.bottle=x.bottle; }
+  else if(gnum(x.price)) it.price=x.price;
+  if(gsp(x.price_text) && gsp(x.price_text)!==String(x.price)) it.price_text=gsp(x.price_text); return it; };
+// Gom mục mọi trang của một PDF thành các menu: món lẻ → a_la_carte, đồ uống → beverage, mỗi set có giá → một set_menu
+// (set không thấy giá ở trang nào thì trả về a_la_carte). taken: tên menu đã dùng, để tên không trùng giữa các PDF.
+function gemMenus(name, pages, taken=new Set()){
+  const food=[], drink=[], sets=new Map(), nums=[]; let note='';
+  const add=(secs,s,items)=>{ const last=secs[secs.length-1], n=gsp(s.name)||(last ? last.name : ''), c=Math.max(0,Math.round(s.choose||0));
+    if(last && last.name===n && (last.choose||0)===c) last.items.push(...items);
+    else secs.push(Object.assign({name:n}, c ? {choose:c} : {}, {items})); };
+  for(const j of pages){
+    if(!note && gsp(j.price_note)) note=gsp(j.price_note);
+    for(const s of j.sections||[]){
+      const items=(s.items||[]).filter(x=>x && gsp(x.name)).map(gitem); if(!items.length) continue;
+      // flash-lite hay bỏ trống ly/chai khi menu in nhiều cỡ ly ("5,50 / 7,25 / 19,95"): số đầu là ly, số cuối là chai
+      if(s.kind==='drink') for(const it of items) if(!it.price && !it.glass && !it.bottle && /\//.test(it.price_text||'')){
+        const v=gnums(it.price_text); if(v.length>=2){ it.glass=v[0]; it.bottle=v[v.length-1]; } }
+      for(const it of items) for(const k of ['price','glass','bottle']) if(it[k]) nums.push([it,k]);
+      if(s.kind!=='set') { add(s.kind==='drink' ? drink : food, s, items); continue; }
+      const k=gsp(s.set)||gsp(s.name); if(!sets.has(k)) sets.set(k,{secs:[],terms:[]}); const t=sets.get(k);
+      if(!t.price && gnum(s.set_price)){ t.price=s.set_price; nums.push([t,'price']); }
+      for(const x of s.set_terms||[]) if(gsp(x) && !t.terms.includes(gsp(x))) t.terms.push(gsp(x));
+      add(t.secs, s, items);
+    }
+  }
+  // menu ghi giá theo nghìn đồng ("290" = 290.000): flash-lite lúc nhân lúc không, nên PDF đã có giá ≥ 10.000 thì nhân nốt
+  if(nums.some(([o,k])=>o[k]>=10000)) for(const [o,k] of nums) if(o[k]<10000){ if(o.name && k==='price') o.price_text??=String(o.price); o[k]*=1000; }
+  const uniq=n=>{ let u=n, i=2; while(taken.has(u)) u=n+' ('+(i++)+')'; taken.add(u); return u; },
+        pn=note ? {price_note:note} : {}, out=[];
+  for(const t of sets.values()) if(!t.price) food.push(...t.secs);
+  if(food.length) out.push({name:uniq(name), type:'a_la_carte', source_url:null, content:{sections:food, ...pn}});
+  for(const [k,t] of sets) if(t.price) out.push({name:uniq(k), type:'set_menu', source_url:null,
+    content:Object.assign({price:t.price, sections:t.secs}, t.terms.length ? {terms:t.terms} : {}, pn)});
+  if(drink.length) out.push({name:uniq(name+' - Đồ uống'), type:'beverage', source_url:null, content:{sections:drink, ...pn}});
+  return out;
+}
+/*/gem-core*/
 mgem.onclick=async()=>{
-  const run=mrun, m=gemm.value, total=mdocs.reduce((n,d)=>n+d.doc.numPages,0), menus=[];
+  const run=mrun, m=gemm.value, total=mdocs.reduce((n,d)=>n+d.doc.numPages,0), menus=[], taken=new Set();
   let done=0, named=0, err='';
   mgem.disabled=true;
   outer: for(const d of mdocs){
-    const secs=[]; let note='';
+    const pages=[];
     for(let pn=1; pn<=d.doc.numPages; pn++){
       if(run!==mrun) return;   // đã mở PDF khác giữa chừng
       // đánh số khung theo thứ tự đọc (trên xuống, trái sang): số lộn xộn thì flash-lite hay gán tên nhầm khung
@@ -1592,20 +1644,11 @@ mgem.onclick=async()=>{
           generationConfig:gcfg(m)}, s=>{ mhint.textContent='Mọi key đang nghỉ, đợi '+s+' giây…'; });
         if(run!==mrun) return;
         const j=JSON.parse(t.replace(/^\s*```(?:json)?|```\s*$/g,''));
-        for(const s of j.sections||[]){
-          const items=(s.items||[]).filter(x=>x&&x.name&&String(x.name).trim()).map(gitem); if(!items.length) continue;
-          const name=gsp(s.name)||(secs.length ? secs[secs.length-1].name : '');
-          if(secs.length && secs[secs.length-1].name===name) secs[secs.length-1].items.push(...items); else secs.push({name,items});
-        }
-        if(!note && j.price_note) note=j.price_note.trim();
+        pages.push(j);
         for(const x of j.images||[]){ const c=cs[x.i-1]; if(c && x.name && x.name.trim()){ c.querySelector('input[type=text]').value=x.name.trim(); named++; } }
       }catch(e){ err='trang '+pn+' của '+d.name+': '+e.message; if(e.fatal) break outer; }
     }
-    // menu ghi giá theo nghìn đồng ("290" = 290.000): flash-lite lúc nhân lúc không, nên menu đã có giá ≥ 10.000 thì nhân nốt
-    const I=secs.flatMap(s=>s.items);
-    if(I.some(i=>i.price>=10000)) for(const i of I) if(i.price>0 && i.price<10000){ i.price_text??=String(i.price); i.price*=1000; }
-    if(secs.length) menus.push({name:d.name.replace(/\.pdf$/i,''), type:'a_la_carte', source_url:null,
-      content:Object.assign({sections:secs}, note ? {price_note:note} : {})});
+    menus.push(...gemMenus(d.name.replace(/\.pdf$/i,''), pages, taken));
   }
   mgem.disabled=false;
   const items=menus.reduce((n,x)=>n+x.content.sections.reduce((k,s)=>k+s.items.length,0),0);

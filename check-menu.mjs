@@ -72,4 +72,32 @@ const J=menuJson([{texts:[{s:'Soups',x:266,y:159,h:40},
 assert.deepStrictEqual(J,{schema_version:1,menus:[{name:'Thử',type:'a_la_carte',source_url:null,content:{sections:[{name:'Soups',items:[
   {name:'LOBSTER BISQUE | SÚP TÔM HÙM',note:'Double Cream',price:380000,price_text:'380'},
   {name:'Steamed rice. Cơm trắng.',price:150000,price_text:'150.000++'}]}],price_note:'GIÁ CHƯA GỒM 8% VAT'}}]});
+// Gemini: gom mục theo kind thành a_la_carte / set_menu / beverage, giá theo nghìn đồng được nhân đồng loạt
+{ const g=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8').split('/*gem-core*/')[1].split('/*/gem-core*/')[0];
+  const {gemMenus}=new Function(g+';return {gemMenus}')();
+  const M=gemMenus('Quán',[
+    {price_note:'Giá chưa gồm VAT',sections:[
+      {name:'Khai vị',kind:'food',items:[{name:'Gỏi cuốn',price:65000},{name:'Chả giò',price:75}]},
+      {name:'Set trưa',kind:'set',set:'Set trưa A',set_price:199,set_terms:['11h–14h'],choose:0,items:[{name:'Canh chua',price:null}]},
+      {name:'Món chính',kind:'set',set:'Set trưa A',set_price:null,set_terms:[],choose:1,items:[{name:'Cá kho'},{name:'Gà rang'}]},
+      {name:'Set tối',kind:'set',set:'Set tối',set_price:null,items:[{name:'Lẩu'}]}]},
+    {sections:[
+      {name:'',kind:'food',items:[{name:'Nem nướng',price:80000}]},
+      {name:'Vang',kind:'drink',items:[{name:'Merlot',price_text:'120 / 650',glass:120,bottle:650},{name:' ',price:1},
+        {name:'Shiraz',price_text:'150 / 180 / 1.200.000'}]},
+      {name:'Set trưa',kind:'set',set:'Set trưa A',set_terms:['11h–14h','Tối thiểu 2 người'],items:[{name:'Chè'}]}]}],new Set(['Quán']));
+  assert.deepStrictEqual(M,[
+    {name:'Quán (2)',type:'a_la_carte',source_url:null,content:{sections:[
+      {name:'Khai vị',items:[{name:'Gỏi cuốn',price:65000},{name:'Chả giò',price:75000,price_text:'75'},{name:'Nem nướng',price:80000}]},
+      {name:'Set tối',items:[{name:'Lẩu'}]}],price_note:'Giá chưa gồm VAT'}},
+    {name:'Set trưa A',type:'set_menu',source_url:null,content:{price:199000,sections:[
+      {name:'Set trưa',items:[{name:'Canh chua'}]},{name:'Món chính',choose:1,items:[{name:'Cá kho'},{name:'Gà rang'}]},
+      {name:'Set trưa',items:[{name:'Chè'}]}],terms:['11h–14h','Tối thiểu 2 người'],price_note:'Giá chưa gồm VAT'}},
+    {name:'Quán - Đồ uống',type:'beverage',source_url:null,content:{sections:[
+      {name:'Vang',items:[{name:'Merlot',glass:120000,bottle:650000,price_text:'120 / 650'},
+        {name:'Shiraz',price_text:'150 / 180 / 1.200.000',glass:150000,bottle:1200000}]}],price_note:'Giá chưa gồm VAT'}}]);
+  // menu ngoại tệ (mọi giá < 10.000) giữ nguyên; giá ly/chai phẩy thập phân kiểu châu Âu
+  assert.equal(gemMenus('Kirin',[{sections:[{name:'Dim sum',kind:'food',items:[{name:'Har gow',price:9.95}]}]}])[0].content.sections[0].items[0].price,9.95);
+  assert.deepStrictEqual(gemMenus('Pho',[{sections:[{name:'Red',kind:'drink',items:[{name:'Malbec',price_text:'5,75 / 7,50 / 20,75'}]}]}])[0].content.sections[0].items[0],
+    {name:'Malbec',price_text:'5,75 / 7,50 / 20,75',glass:5.75,bottle:20.75}); }
 console.log('ok');
