@@ -257,6 +257,10 @@
   #mdrop.drag{outline:2px dashed var(--water)}
   #mgrid .mck{position:absolute;top:8px;right:8px;z-index:1;width:22px;height:22px;margin:0;accent-color:var(--water);cursor:pointer}
   #mgrid .card:not(:has(.mck:checked)) img{opacity:.3}
+  #gemk{height:auto;margin-top:8px;padding:8px 10px;font:12px ui-monospace,Consolas,monospace;border:1px solid var(--line);
+    border-radius:9px;background:var(--sunk);color:var(--ink);resize:vertical}
+  #gemk:not(:focus){-webkit-text-security:disc}   /* key hiện chữ chỉ lúc đang sửa */
+  #gemu{margin-top:8px;font-variant-numeric:tabular-nums;line-height:1.6}
   #udrop.drag{outline:2px dashed var(--water)}
   .ulist{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
   .urow{display:flex;gap:14px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px}
@@ -405,6 +409,7 @@
     <button id="mdrop0" hidden>Bỏ chọn ảnh chưa có tên</button>
     <button id="mai" hidden title="Copy câu lệnh làm nét, dán vào Gemini hoặc ChatGPT kèm các ảnh ghi “mờ” (Claude không xuất được ảnh)"></button>
     <button id="mjson" hidden></button>
+    <button id="mgem" hidden title="Gửi từng trang PDF cho Gemini: điền tên món dưới ảnh và viết lại JSON menu"></button>
   </div>
   <form class="row" id="murlf">
     <input type="text" id="murl" inputmode="url" spellcheck="false" placeholder="…hoặc dán link PDF (https://…/menu.pdf)" aria-label="Link file PDF">
@@ -415,6 +420,18 @@
     <summary>Khoá máy chủ ảnh (để tạo link)</summary>
     <div class="row"><input type="password" id="mkey" spellcheck="false" autocomplete="off" aria-label="Khoá máy chủ ảnh"></div>
     <p>Chỉ cần cho nút Tạo link 7 ngày. Khoá lưu trong trình duyệt này, không nằm trong trang.</p>
+  </details>
+  <details class="tok" id="gemd">
+    <summary>Gemini (tuỳ chọn): đọc tên món, viết menu</summary>
+    <p>Mỗi dòng một API key (lấy ở <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a>).
+      Nhiều key thì trang tự xoay sang key khác khi một key hết lượt. Không dùng thì để trống.</p>
+    <textarea id="gemk" rows="3" spellcheck="false" autocomplete="off" wrap="off" placeholder="AIza…" aria-label="API key Gemini, mỗi dòng một key"></textarea>
+    <div class="row"><select id="gemm" aria-label="Model Gemini"></select></div>
+    <div id="gemu" aria-live="polite"></div>
+    <p>Lượt đếm trong trình duyệt này, so với hạn mức free tier ước tính (Google không cho xem số lượt còn lại);
+      đặt lại lúc 0h giờ Mỹ (15h hoặc 16h giờ VN). Số chính xác:
+      <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener noreferrer">aistudio.google.com/rate-limit</a>.
+      Key lưu trong trình duyệt này và chỉ gửi tới Google.</p>
   </details>
 </div>
 <div class="empty" id="mempty"><div class="empty-in">
@@ -430,6 +447,8 @@
       và tên món, ví dụ <code>p23_pizza_pizza-hai-san.jpg</code>. Nút ↓ dưới ảnh tải riêng ảnh đó.</li>
     <li><b>Bỏ chọn ảnh chưa có tên</b>: loại nhanh ảnh trang trí, vì ảnh món thường có tên in kèm.</li>
     <li><b>Tải JSON menu</b>: mục, tên món, mô tả và giá đọc từ chữ trong PDF. Không dùng AI nên cần rà lại.</li>
+    <li><b>Gemini đọc tên món + viết menu</b>: chỉ hiện khi đã điền key ở mục Gemini. Mỗi trang PDF tốn một lượt:
+      Gemini điền tên món dưới ảnh và viết lại JSON menu, đọc được cả PDF dạng scan.</li>
     <li><b>Tạo link 7 ngày</b>: đưa ảnh đã chọn lên máy chủ riêng, mỗi ảnh ra một link công khai để gửi cho CDN hay
       bên thứ 3. Link tự hết hạn và ảnh tự xoá sau 7 ngày. Cần khoá máy chủ ảnh.</li>
     <li><b>Copy prompt làm nét</b>: chỉ hiện khi có ảnh ghi “mờ” ở góc (ảnh gốc trong PDF quá nhỏ). Tải các ảnh đó,
@@ -1276,12 +1295,14 @@ function menuCard(blob,pn,sec,name,w,h){
   c.append(box,foot,l); return c;
 }
 let mrun=0, mpdf='menu', mjs=null, mmulti=false;   // mrun: chọn file mới giữa chừng thì lượt cũ tự dừng; mpdf: tên zip/JSON
+let mdocs=[];   // PDF đang mở (pdf.js), giữ lại để nút Gemini vẽ lại từng trang
 // Nhận một hay nhiều PDF: đọc lần lượt, ảnh mọi file nối vào cùng một lưới; file lỗi thì báo rồi đọc tiếp file sau.
 async function menuPdf(files){
   files=[].concat(files).filter(Boolean);
   if(!files.length) return;
   const run=++mrun; mgrid.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
-  mgrid.replaceChildren(); mempty.hidden=true; mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=mai.hidden=true; mjs=null;
+  mgrid.replaceChildren(); mempty.hidden=true; mall.hidden=msel.hidden=mup.hidden=mdrop0.hidden=mjson.hidden=mai.hidden=mgem.hidden=true; mjs=null;
+  mdocs.forEach(d=>d.doc.destroy()); mdocs=[];
   const pslug=f=>slug((f.name||'').replace(/\.pdf$/i,''))||'menu';
   mmulti=files.length>1; mpdf=mmulti ? 'menu_'+files.length+'-pdf' : pslug(files[0]);
   let named=0, items=0; const bad=[];
@@ -1295,6 +1316,8 @@ async function menuPdf(files){
     const tag=mmulti ? 'File '+(fi+1)+'/'+files.length+': ' : '';
     try{
       const doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+      if(run!==mrun){ doc.destroy(); return; }
+      mdocs.push({doc, name:file.name||'menu.pdf', slug:pslug(file)});
       // Lượt 1: đọc chữ mọi trang để nhận ra chân trang (hotline, website…) = dòng lặp lại trên quá nửa số trang;
       // không bỏ thì ảnh nằm sát đáy trang bị gán tên là dòng đó.
       const TX=[], seen=new Map();
@@ -1323,7 +1346,7 @@ async function menuPdf(files){
           const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9)), name=menuName(b,texts,used);
           if(run!==mrun) return;
           if(name) named++;
-          const card=menuCard(blob,pn,sec,name,w,h); mgrid.append(card);
+          const card=menuCard(blob,pn,sec,name,w,h); mgrid.append(card); card.b=b;
           card.pdf=pslug(file); if(mmulti) card.querySelector('.no').title=file.name+', trang '+pn;
           if(c.low){ card.low=1; card.querySelector('.st').textContent+=' · mờ'; }
         }
@@ -1335,7 +1358,7 @@ async function menuPdf(files){
     : bad.length===files.length ? '' : 'Không tìm thấy ảnh món nào'+(items ? ' (menu chỉ có chữ).' : '. PDF dạng scan (mỗi trang là một tấm ảnh) thì trang này chưa tách được.');
   if(items) mhint.textContent+=' JSON menu: '+items+' món có giá, '+mjs.menus.reduce((k,m)=>k+m.content.sections.length,0)+' mục.';
   if(bad.length) mhint.textContent+=' Không đọc được: '+bad.join('; ')+'.';
-  mcount(); mdrop0.hidden=n===named; maiCount();
+  mcount(); mdrop0.hidden=n===named; maiCount(); mgemShow();
 }
 // Cắt một khung ảnh món. Vẽ khung ở đúng độ nét ảnh gốc (b.d px/pt, cạnh dài tối đa 2400px): pdf.js phóng ảnh quá
 // ~1.33 lần thì tắt làm mượt, ảnh nhỏ bị vỡ ô vuông. Ảnh gốc thưa hơn MZ thì tự phóng lên MZ bằng nội suy chất lượng
@@ -1437,6 +1460,155 @@ mup.onclick=async()=>{
       +' Bấm link dưới ảnh để copy riêng; file zip có thêm cột link trong CSV.' : '')
     +(err ? ' Dừng vì lỗi: '+err+'.' : '');
   mcount();
+};
+
+/* ---------- Gemini (tuỳ chọn): người dùng tự điền key, trang gọi thẳng Google (API mở CORS), không qua máy nào ---------- */
+const GEM='https://generativelanguage.googleapis.com/v1beta', gemk=document.getElementById('gemk'), gemm=document.getElementById('gemm'),
+      gemu=document.getElementById('gemu'), gemd=document.getElementById('gemd'), mgem=document.getElementById('mgem');
+// Hạn mức free tier mỗi key mỗi ngày (đo 09–11/2026). API không trả số lượt còn lại nên trang tự đếm; null = chưa rõ.
+// shortcut: số cứng theo họ model, Google đổi hạn mức thì sửa ở đây.
+const gemRpd=m=>/gemma/.test(m)?14400 : /flash-lite/.test(m)?500 : /flash/.test(m)?20 : null;
+const ptDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});   // Google đặt lại hạn mức lúc 0h giờ Mỹ
+let gst={}; try{ gst=JSON.parse(localStorage.getItem('gpv-gemini'))||{}; }catch(e){}
+const gsave=()=>{ try{ localStorage.setItem('gpv-gemini',JSON.stringify(gst)); }catch(e){} };
+const gkeys=()=>[...new Set(gemk.value.split(/\s+/).filter(k=>/^AIza[\w-]{30,}$/.test(k)))];
+// Lượt đã dùng hôm nay theo key + model; khoá theo 6 ký tự cuối của key.
+function guse(k,m){ if(gst.day!==ptDay()){ gst.day=ptDay(); gst.use={}; } return gst.use[k.slice(-6)+' '+m] ||= {n:0}; }
+const gcool={};   // key -> lúc hết nghỉ (hết lượt phút, quá tải); chỉ sống trong tab
+function gdraw(){
+  const m=gemm.value, lim=gemRpd(m);
+  gemu.replaceChildren(...gkeys().map(k=>{ const u=guse(k,m), w=(gcool[k]||0)-Date.now(), d=document.createElement('div');
+    d.textContent='…'+k.slice(-4)+': '+u.n+'/'+(lim??'?')+' lượt hôm nay · '
+      +(u.bad ? 'key sai hoặc bị khoá' : u.out ? 'hết lượt hôm nay' : w>0 ? 'nghỉ '+Math.ceil(w/1000)+' giây' : 'còn lượt');
+    return d; }));
+  mgemShow();
+}
+function mgemShow(){
+  const p=mdocs.reduce((n,d)=>n+d.doc.numPages,0);
+  mgem.hidden=!p || !gkeys().length; mgem.textContent='Gemini đọc tên món + viết menu ('+p+' trang)';
+}
+setInterval(()=>{ if(gemd.open && Object.values(gcool).some(t=>t>Date.now()-1000)) gdraw(); },1000);   // đếm ngược giây nghỉ
+function gfill(ms){
+  const cur=gst.model||'gemini-3.5-flash-lite';
+  gemm.replaceChildren(...ms.map(m=>new Option(m+(gemRpd(m) ? ' · '+gemRpd(m)+' lượt/ngày' : ''),m)));
+  gemm.value=ms.includes(cur) ? cur : ms[0];
+}
+// Danh sách model lấy theo key đầu tiên; bỏ model không đọc ảnh ra chữ được (TTS, tạo ảnh, agent…).
+async function gmodels(){
+  const k=gkeys()[0]; if(!k) return;
+  try{
+    const j=await (await fetch(GEM+'/models?pageSize=200',{headers:{'x-goog-api-key':k},signal:AbortSignal.timeout(15000)})).json();
+    const ms=(j.models||[]).filter(x=>x.supportedGenerationMethods.includes('generateContent') && /^models\/(gemini|gemma)-/.test(x.name)
+      && !/tts|image|banana|robotics|computer|research|transcribe|customtools|omni|antigravity/.test(x.name)).map(x=>x.name.slice(7));
+    if(ms.length){ gfill(ms); gdraw(); }
+  }catch(e){}
+}
+gfill(['gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-3.5-flash']);   // trước khi có key để hỏi danh sách
+gemk.value=gst.keys||''; gdraw(); gmodels();
+gemk.onchange=()=>{ gst.keys=gemk.value.trim(); gsave(); gdraw(); gmodels(); };
+gemm.onchange=()=>{ gst.model=gemm.value; gsave(); gdraw(); };
+// Gọi một lượt: chọn key còn lượt, ít dùng nhất; 429 theo phút / 5xx thì cho key nghỉ rồi xoay sang key khác,
+// 429 theo ngày thì gạch key đó tới hết ngày. Lỗi có .fatal = không key nào dùng được nữa, dừng hẳn.
+async function gemCall(body, onWait){
+  const m=gemm.value, fatal=msg=>Object.assign(new Error(msg),{fatal:true});
+  for(let tries=0; tries<15; tries++){
+    const ks=gkeys().filter(k=>{ const u=guse(k,m); return !u.out && !u.bad; });
+    if(!ks.length) throw fatal(gkeys().length ? 'mọi key đã hết lượt hôm nay với '+m+' (đổi model khác hoặc thêm key)' : 'chưa có key Gemini');
+    const free=k=>Math.max(gcool[k]||0,Date.now());
+    ks.sort((a,b)=>free(a)-free(b) || guse(a,m).n-guse(b,m).n);
+    const k=ks[0], w=free(k)-Date.now();
+    if(w>0){ onWait&&onWait(Math.ceil(w/1000)); await new Promise(r=>setTimeout(r,w)); }
+    let r;
+    try{ r=await fetch(GEM+'/models/'+m+':generateContent',{method:'POST',body:JSON.stringify(body),
+      headers:{'x-goog-api-key':k,'Content-Type':'application/json'},signal:AbortSignal.timeout(120000)}); }
+    catch(e){ gcool[k]=Date.now()+5000; continue; }   // mạng chập hoặc quá 2 phút: thử lại, có thể bằng key khác
+    const u=guse(k,m);
+    if(r.ok){
+      u.n++; gsave(); gdraw();
+      const j=await r.json(), c=j.candidates&&j.candidates[0];
+      const t=c&&c.content&&(c.content.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join('');
+      if(!t) throw new Error('Gemini không trả nội dung ('+((c&&c.finishReason)||(j.promptFeedback&&j.promptFeedback.blockReason)||'?')+')');
+      return t;
+    }
+    const e=(await r.json().catch(()=>({}))).error||{}, det=e.details||[];
+    if(r.status===429){
+      if(/PerDay/.test(det.flatMap(d=>d.violations||[]).map(v=>v.quotaId).join(' '))) u.out=true;
+      else gcool[k]=Date.now()+(parseFloat((det.find(d=>d.retryDelay)||{}).retryDelay)||30)*1000;
+    }else if(r.status===403 || (r.status===400 && /API.?key/i.test(e.message||''))) u.bad=true;
+    else if(r.status>=500) gcool[k]=Date.now()+4000;   // 503 "high demand" hay gặp ở flash
+    else throw new Error(e.message||'HTTP '+r.status);
+    gsave(); gdraw();
+  }
+  throw new Error('Gemini quá tải, thử lại sau ít phút');
+}
+// Vẽ trang (cạnh dài ≤1600px) kèm khung đỏ đánh số quanh từng ảnh đã cắt, để Gemini nói ảnh #i là món nào.
+async function gemPage(page,cs){
+  const v1=page.getViewport({scale:1}), k=Math.min(2,1600/Math.max(v1.width,v1.height)), vp=page.getViewport({scale:k});
+  const c=document.createElement('canvas'); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+  const g=c.getContext('2d'); await page.render({canvasContext:g,viewport:vp}).promise;
+  g.lineWidth=4; g.font='bold 26px sans-serif'; g.textBaseline='top';
+  cs.forEach((cd,i)=>{ const b=cd.b, x=b[0]*k, y=b[1]*k, t='#'+(i+1);
+    g.strokeStyle='#e00'; g.strokeRect(x,y,(b[2]-b[0])*k,(b[3]-b[1])*k);
+    g.fillStyle='#e00'; g.fillRect(x,y,g.measureText(t).width+12,32); g.fillStyle='#fff'; g.fillText(t,x+6,y+3); });
+  return c.toDataURL('image/jpeg',.85).split(',')[1];
+}
+const GEM_PROMPT=n=>`Ảnh là một trang menu nhà hàng.${n ? ` Các khung đỏ đánh số #1 đến #${n} là ảnh món đã được cắt ra.` : ''}
+Trả về JSON:
+- sections: các mục món trên trang theo thứ tự đọc, mỗi mục {name, items}. Mỗi món {name, note, price, price_text}:
+  name giữ đúng chữ in trên menu (không dịch, không sửa); note là mô tả hay ghi chú in kèm món, không có thì "";
+  price_text là giá đúng như in; price là giá thành số đầy đủ (menu Việt ghi "290" hay "290k" nghĩa là 290000), không có giá thì null.
+  Món có nhiều mức giá thì price_text ghi đủ, price lấy mức đầu. Mục không có tên in trên trang thì name "".
+  Không đưa vào: tên nhà hàng, địa chỉ, hotline, giờ mở cửa, chú thích chung.
+- price_note: ghi chú chung về giá (VAT, phí phục vụ) nếu trang có, không có thì "".
+- images: ${n ? `với mỗi khung #i: {i, name} với name là tên món mà ảnh đó minh hoạ, viết đúng như trong sections; ảnh trang trí, logo, ảnh không gắn với món nào thì name "".` : 'trang không có khung ảnh nào, để mảng rỗng.'}
+Trang không có món nào (bìa, giới thiệu) thì sections rỗng.`;
+const GEM_SCHEMA={type:'OBJECT',required:['sections','images'],properties:{
+  sections:{type:'ARRAY',items:{type:'OBJECT',required:['name','items'],properties:{name:{type:'STRING'},
+    items:{type:'ARRAY',items:{type:'OBJECT',required:['name'],properties:{name:{type:'STRING'},note:{type:'STRING'},
+      price:{type:'NUMBER',nullable:true},price_text:{type:'STRING'}}}}}}},
+  price_note:{type:'STRING'},
+  images:{type:'ARRAY',items:{type:'OBJECT',required:['i','name'],properties:{i:{type:'INTEGER'},name:{type:'STRING'}}}}}};
+// Gemma không có chế độ JSON qua API: chỉ dựa vào prompt rồi bóc ```json``` khi parse.
+const gcfg=m=>/^gemini/.test(m) ? {responseMimeType:'application/json',responseSchema:GEM_SCHEMA} : {};
+// Cùng khuôn với menuJson: {name, note?, price?, price_text?}
+const gitem=x=>{ const it={name:String(x.name).trim()}; if(x.note&&x.note.trim()) it.note=x.note.trim();
+  if(typeof x.price==='number') it.price=x.price; if(x.price_text&&x.price_text.trim()!==String(x.price)) it.price_text=x.price_text.trim(); return it; };
+mgem.onclick=async()=>{
+  const run=mrun, m=gemm.value, total=mdocs.reduce((n,d)=>n+d.doc.numPages,0), menus=[];
+  let done=0, named=0, err='';
+  mgem.disabled=true;
+  outer: for(const d of mdocs){
+    const secs=[]; let note='';
+    for(let pn=1; pn<=d.doc.numPages; pn++){
+      if(run!==mrun) return;   // đã mở PDF khác giữa chừng
+      // đánh số khung theo thứ tự đọc (trên xuống, trái sang): số lộn xộn thì flash-lite hay gán tên nhầm khung
+      const cs=[...mgrid.children].filter(c=>c.pdf===d.slug && c.pn===pn)
+        .sort((a,b)=>Math.abs(a.b[1]-b.b[1])<30 ? a.b[0]-b.b[0] : a.b[1]-b.b[1]);
+      mhint.textContent='Gemini ('+m+') đang đọc trang '+(++done)+'/'+total+'…';
+      try{
+        const img=await gemPage(await d.doc.getPage(pn),cs);
+        const t=await gemCall({contents:[{parts:[{inlineData:{mimeType:'image/jpeg',data:img}},{text:GEM_PROMPT(cs.length)}]}],
+          generationConfig:gcfg(m)}, s=>{ mhint.textContent='Mọi key đang nghỉ, đợi '+s+' giây…'; });
+        if(run!==mrun) return;
+        const j=JSON.parse(t.replace(/^\s*```(?:json)?|```\s*$/g,''));
+        for(const s of j.sections||[]){
+          const items=(s.items||[]).filter(x=>x&&x.name&&String(x.name).trim()).map(gitem); if(!items.length) continue;
+          const name=String(s.name||'').trim()||(secs.length ? secs[secs.length-1].name : '');
+          if(secs.length && secs[secs.length-1].name===name) secs[secs.length-1].items.push(...items); else secs.push({name,items});
+        }
+        if(!note && j.price_note) note=j.price_note.trim();
+        for(const x of j.images||[]){ const c=cs[x.i-1]; if(c && x.name && x.name.trim()){ c.querySelector('input[type=text]').value=x.name.trim(); named++; } }
+      }catch(e){ err='trang '+pn+' của '+d.name+': '+e.message; if(e.fatal) break outer; }
+    }
+    if(secs.length) menus.push({name:d.name.replace(/\.pdf$/i,''), type:'a_la_carte', source_url:null,
+      content:Object.assign({sections:secs}, note ? {price_note:note} : {})});
+  }
+  mgem.disabled=false;
+  const items=menus.reduce((n,x)=>n+x.content.sections.reduce((k,s)=>k+s.items.length,0),0);
+  if(items){ mjs={schema_version:1, menus}; mjson.textContent='Tải JSON menu ('+items+' món, Gemini)'; mjson.hidden=false; }
+  mhint.textContent='Gemini xong: '+named+' ảnh có tên món, '+items+' món trong JSON menu. Rà lại trước khi tải.'
+    +(err ? ' Lỗi gần nhất ở '+err+'.' : '');
+  mdrop0.hidden=[...mgrid.children].every(c=>mname(c));
 };
 
 /* ---------- up ảnh lấy link: cùng máy chủ ảnh tạm với Menu PDF, mỗi ảnh một link 7 ngày ---------- */

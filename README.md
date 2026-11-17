@@ -130,6 +130,23 @@ tên rồi bỏ qua, các file khác vẫn đọc tiếp.
   duy nhất của trang).
 - Tự kiểm phần lõi: `node check-menu.mjs`.
 
+### Gemini đọc tên món + viết menu (tuỳ chọn)
+
+Mở mục **Gemini (tuỳ chọn)** dưới thanh nút, dán một hoặc nhiều API key (mỗi dòng một key, lấy ở
+[AI Studio](https://aistudio.google.com/apikey)), chọn model. Không điền key thì mọi thứ chạy như cũ.
+
+- Nút **Gemini đọc tên món + viết menu** gửi **một lượt mỗi trang PDF**: ảnh trang (cạnh dài ≤1600px) có vẽ khung đỏ
+  đánh số các ảnh đã cắt, theo thứ tự đọc (trên → dưới, trái → phải). Gemini trả tên món cho từng khung số và toàn bộ
+  mục/món/giá của trang; tên chỉ ghi đè khi Gemini trả tên không rỗng (khung trang trí giữ tên cũ), JSON menu được
+  thay bằng bản Gemini viết (mục trùng tên liền nhau được gộp qua các trang).
+- Nhiều key: mỗi lượt chọn key đang không chờ và dùng ít nhất. Lỗi 429 theo ngày → key nghỉ tới hết ngày; theo phút →
+  chờ đúng `retryDelay` Google trả; key sai (400/403) → bỏ. Hết mọi key thì dừng và báo.
+- Giới hạn hiển thị là **ước tính** của free tier (flash-lite 500 lượt/ngày, flash 20, gemma 14400) đếm trong máy;
+  Google không trả số lượt còn lại qua API. Ngày tính theo giờ Los Angeles (lúc Google đặt lại hạn mức).
+- Model sinh ảnh và 3.1-pro không có hạn mức free nên bị lọc khỏi danh sách.
+- Key lưu trong `localStorage` (`gpv-gemini`) của trình duyệt, chỉ gửi thẳng tới `generativelanguage.googleapis.com`.
+  Mọi trang trên `thanhnb-nbt.github.io` dùng chung origin này — đừng dùng máy chung.
+
 ## Up ảnh lấy link
 
 Tab **Up ảnh**: kéo thả, dán (Ctrl+V) hoặc chọn nhiều ảnh, mỗi ảnh tự tải lên cùng máy chủ ảnh tạm với Menu PDF
