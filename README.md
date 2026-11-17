@@ -156,6 +156,10 @@ Mở mục **Gemini / Claude (tuỳ chọn)** dưới thanh nút, dán một ho�
   trang lỗi thêm một vòng; vẫn lỗi thì dòng thông báo ghi **CHƯA ĐỦ** kèm số trang. Bấm lại nút chỉ đọc các trang còn
   thiếu (kết quả trang đã đọc được nhớ tới khi mở PDF khác).
   Đã thử Mediterra 16 trang (flash-lite, 1 key): 47 món đủ, 2 lần 503 tự vượt qua, 68 giây.
+- Đọc **song song**: mỗi key 4 luồng, tối đa 8 luồng, cùng rút trang từ một hàng đợi; key nào đang ít request nhất thì
+  nhận request tiếp. Không mở mỗi trang một luồng vì free tier giới hạn lượt/phút, mở quá nhiều chỉ ăn 429.
+  Thử giả lập (2 key, mỗi request 1,5 giây) PDF 26 trang: tối đa 7 request cùng lúc, chia 17/17 cho 2 key, 16 giây
+  thay vì ~40 giây đọc tuần tự.
 - Nhiều key: mỗi lượt chọn key đang không chờ và dùng ít nhất. Lỗi 429 theo ngày → key nghỉ tới hết ngày; theo phút →
   chờ đúng `retryDelay` Google trả; 503 → lùi dần 4, 8, 16… giây (tối đa 1 phút); một trang chờ quá 6 phút thì tính là
   lỗi. Key sai (400/403) → bỏ. Hết mọi key thì dừng và báo.

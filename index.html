@@ -1483,6 +1483,7 @@ const gkeys=m=>[...new Set(gemk.value.split(/\s+/).filter(k=>
 // Lượt đã dùng hôm nay theo key + model; khoá theo 6 ký tự cuối của key.
 function guse(k,m){ if(gst.day!==ptDay()){ gst.day=ptDay(); gst.use={}; } return gst.use[k.slice(-6)+' '+m] ||= {n:0}; }
 const gcool={};   // key -> lúc hết nghỉ (hết lượt phút, quá tải); chỉ sống trong tab
+const gbusy={};   // key -> số request đang chạy (đọc song song nhiều trang)
 function gdraw(){
   const m=gemm.value, lim=gemRpd(m), cl=isCl(m);
   gemu.replaceChildren(...gkeys(m).map(k=>{ const u=guse(k,m), w=(gcool[k]||0)-Date.now(), d=document.createElement('div');
@@ -1533,18 +1534,19 @@ async function gemCall(img, prompt, onWait){
   const m=gemm.value, cl=isCl(m), who=cl ? 'Claude' : 'Gemini', fatal=msg=>Object.assign(new Error(msg),{fatal:true}), t0=Date.now();
   // Một key free tier hết lượt/phút sau ~15 trang: đợi theo retryDelay thay vì đếm lần thử, chỉ bỏ cuộc sau 6 phút
   for(let n5=0; Date.now()-t0<360000;){
-    const ks=gkeys(m).filter(k=>{ const u=guse(k,m); return !u.out && !u.bad; });
-    if(!ks.length) throw fatal(!gkeys(m).length ? 'chưa có key '+who
+    const ks=gkeys(m).filter(k=>{ const u=guse(k,m); return !u.out && !u.bad; });    if(!ks.length) throw fatal(!gkeys(m).length ? 'chưa có key '+who
       : cl ? 'mọi key Claude đều sai, bị khoá hoặc hết tiền' : 'mọi key đã hết lượt hôm nay với '+m+' (đổi model khác hoặc thêm key)');
     const free=k=>Math.max(gcool[k]||0,Date.now());
-    ks.sort((a,b)=>free(a)-free(b) || guse(a,m).n-guse(b,m).n);
+    // các luồng song song: ưu tiên key đang chạy ít request nhất để chia đều tải
+    ks.sort((a,b)=>free(a)-free(b) || (gbusy[a]||0)-(gbusy[b]||0) || guse(a,m).n-guse(b,m).n);
     const k=ks[0], w=free(k)-Date.now();
-    if(w>0){ onWait&&onWait(Math.ceil(w/1000)); await new Promise(r=>setTimeout(r,w)); }
-    let r;
+    if(w>0){ onWait&&onWait(Math.ceil(w/1000)); await new Promise(r=>setTimeout(r,w)); continue; }   // chọn lại key sau khi đợi
+    let r; gbusy[k]=(gbusy[k]||0)+1;
     try{ r=await (cl ? clFetch(k,m,img,prompt) : fetch(GEM+'/models/'+m+':generateContent',{method:'POST',
       body:JSON.stringify({contents:[{parts:[{inlineData:{mimeType:'image/jpeg',data:img}},{text:prompt}]}],generationConfig:gcfg(m)}),
       headers:{'x-goog-api-key':k,'Content-Type':'application/json'},signal:AbortSignal.timeout(120000)})); }
     catch(e){ gcool[k]=Date.now()+5000; continue; }   // mạng chập hoặc quá hạn chờ: thử lại, có thể bằng key khác
+    finally{ gbusy[k]--; }
     const u=guse(k,m);
     if(cl){
       if(r.ok){
@@ -1737,13 +1739,23 @@ mgem.onclick=async()=>{
   // lượt 2 đọc lại các trang lỗi ở lượt 1 (thường là 503/429 dồn dập), lúc đó key đã nghỉ đủ
   for(let pass=0; pass<2 && !fatal; pass++){
     const list=pass ? fails : jobs; fails=[];
-    for(const [i,[d,pn]] of list.entries()){
-      if(run!==mrun) return;   // đã mở PDF khác giữa chừng
-      const cs=gcards(d,pn), k=key(d,pn,cs); if(gcache.has(k)) continue;
-      mhint.textContent=(isCl(m) ? 'Claude' : 'Gemini')+' ('+m+') '+(pass ? 'đọc lại trang lỗi '+(i+1)+'/'+list.length : 'đang đọc trang '+(jobs.indexOf(list[i])+1)+'/'+total)+'…';
-      try{ const r=await gemRead(d,pn,cs,wait); if(run!==mrun) return; gcache.set(k,r); }
-      catch(e){ err=e.message; fails.push([d,pn]); if(e.fatal){ fatal=true; break; } }
-    }
+    // Đọc song song: N luồng cùng rút trang từ hàng đợi. 4 luồng mỗi key, tối đa 8: nhiều hơn chỉ ăn 429 hết lượt/phút.
+    let next=0, done=0;
+    const N=Math.min(8, 4*gkeys(m).length, list.length);
+    const show=()=>{ mhint.textContent=(isCl(m) ? 'Claude' : 'Gemini')+' ('+m+') '+(pass ? 'đọc lại trang lỗi' : 'đang đọc')
+      +' song song '+N+' luồng: xong '+done+'/'+list.length+' trang…'; };
+    show();
+    await Promise.all(Array.from({length:N}, async()=>{
+      while(next<list.length && !fatal && run===mrun){
+        const [d,pn]=list[next++], cs=gcards(d,pn), k=key(d,pn,cs);
+        if(!gcache.has(k)){
+          try{ const r=await gemRead(d,pn,cs,wait); if(run===mrun) gcache.set(k,r); }
+          catch(e){ err=e.message; fails.push([d,pn]); if(e.fatal) fatal=true; }
+        }
+        done++; if(run===mrun) show();
+      }
+    }));
+    if(run!==mrun) return;   // đã mở PDF khác giữa chừng
   }
   const left=[], warn=[], where=(d,pn)=>(mdocs.length>1 ? d.name+' ' : '')+'tr.'+pn;
   for(const d of mdocs){
@@ -1759,7 +1771,7 @@ mgem.onclick=async()=>{
   mgem.disabled=false;
   const items=menus.reduce((n,x)=>n+x.content.sections.reduce((k,s)=>k+s.items.length,0),0);
   if(items){ mjs={schema_version:1, menus}; mjson.textContent='Tải JSON menu ('+items+' món, '+(isCl(m) ? 'Claude' : 'Gemini')+')'; mjson.hidden=false; }
-  mhint.textContent=(left.length ? '⚠ CHƯA ĐỦ: '+left.length+' trang chưa đọc được ('+left.join(', ')+') vì '+err
+  mhint.textContent=(left.length ? '⚠ CHƯA ĐỦ: '+left.length+' trang chưa đọc được ('+left.join(', ')+') vì '+(err || 'ảnh món trên trang vừa đổi trong lúc đọc')
       +'. Bấm lại nút đọc menu để đọc tiếp riêng các trang này. ' : (isCl(m) ? 'Claude' : 'Gemini')+' xong. ')
     +named+' ảnh có tên món, '+items+' món trong JSON menu.'
     +(warn.length ? ' Nên soát: số in trên trang mà JSON không có ở '+warn.join('; ')+'.' : '')+' Rà lại trước khi tải.';
